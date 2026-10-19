@@ -2,6 +2,28 @@ import { connectDB, disconnectDB } from '../db.js';
 import {Usuario} from '../models/index.js';
 import { ROLES } from '../../../domain/constants/practicasConstants.js';
 
+export const seedInitialAdmin = async () => {
+  const adminExistente = await Usuario.findOne({ rol: ROLES.ADMINISTRADOR });
+  if (!adminExistente) {
+    const adminBase = new Usuario({
+      cedula: '1700000001',
+      nombres: 'Administrador',
+      apellidos: 'ESFOT Sistema',
+      correo: 'admin@epn.edu.ec',
+      password: 'AdminPassword123!',
+      telefono: '0999999999',
+      rol: ROLES.ADMINISTRADOR,
+      estado: 'activo',
+      token: null,
+      tokenExpires: null
+    });
+    await adminBase.save();
+    console.log('[Seed] Usuario administrador inicial creado: admin@epn.edu.ec');
+  } else {
+    console.log(`[Seed] Usuario administrador existente: ${adminExistente.correo}`);
+  }
+};
+
 const initDatabase = async () => {
   try {
     console.log('Iniciando verificación y configuración de MongoDB Atlas');
@@ -31,23 +53,7 @@ const initDatabase = async () => {
       }
     }
 
-    const adminExistente = await Usuario.findOne({ rol: ROLES.ADMINISTRADOR });
-    if (!adminExistente) {
-      const adminBase = new Usuario({
-        cedula: '1700000001',
-        nombres: 'Administrador',
-        apellidos: 'ESFOT Sistema',
-        correo: 'admin@epn.edu.ec',
-        password: 'AdminPassword123!',
-        telefono: '0999999999',
-        rol: ROLES.ADMINISTRADOR,
-        estado: 'activo'
-      });
-      await adminBase.save();
-      console.log('Usuario administrador inicial creado: admin@epn.edu.ec');
-    } else {
-      console.log(`Usuario administrador existente: ${adminExistente.correo}`);
-    }
+    await seedInitialAdmin();
 
     await disconnectDB();
     process.exit(0);
@@ -57,4 +63,12 @@ const initDatabase = async () => {
   }
 };
 
-initDatabase();
+const isDirectRun = process.argv[1] && (
+  process.argv[1].endsWith('initDB.js') || 
+  process.argv[1].endsWith('initDB')
+);
+
+if (isDirectRun) {
+  initDatabase();
+}
+

@@ -1,11 +1,12 @@
 import app from './app.js';
 import { connectDB } from './infrastructure/database/db.js';
+import { seedInitialAdmin } from './infrastructure/database/scripts/initDB.js';
 import { ENV } from './infrastructure/config/env.js';
 
 const startServer = async () => {
   try {
-    
     await connectDB();
+    await seedInitialAdmin();
 
     app.listen(ENV.PORT, () => {
       console.log(`[Servidor] Escuchando en http://localhost:${ENV.PORT}`);

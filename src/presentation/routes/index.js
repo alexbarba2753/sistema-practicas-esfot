@@ -2,14 +2,10 @@ import { Router } from 'express';
 
 const router = Router();
 
-// Health Check Endpoint
-router.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'API del Sistema de Prácticas ESFOT operativa (Arquitectura Hexagonal / Clean)',
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
-  });
-});
+// Enrutador central de la API: aquí se montarán las rutas de cada Sprint
+// Sprint 1: router.use('/auth', authRoutes);
+// Sprint 2: router.use('/admin', adminRoutes);
+// Sprint 3: router.use('/docente', docenteRoutes);
+// Sprint 4: router.use('/estudiante', estudianteRoutes);
 
 export default router;

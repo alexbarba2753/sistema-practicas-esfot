@@ -1,20 +1,16 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
 import routes from './presentation/routes/index.js';
 import { errorHandler } from './presentation/middlewares/errorHandler.js';
 
 const app = express();
 
-// Middlewares globales de seguridad y utilitarios
-app.use(helmet());
+// Middlewares requeridos
 app.use(cors());
-app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rutas base de la API (Capa de Presentación)
+// Rutas base de la API
 app.use('/api', routes);
 
 // Middleware para manejo de 404

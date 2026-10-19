@@ -1,8 +1,3 @@
-/**
- * Reglas de negocio puras del Dominio (Independientes de BD y Framework)
- * Sistema de Prácticas Preprofesionales ESFOT - EPN
- */
-
 export const ROLES = Object.freeze({
   ADMINISTRADOR: 'administrador',
   DOCENTE: 'docente',
@@ -30,4 +25,4 @@ export const ESTADOS_AULA = Object.freeze({
   CERRADA: 'cerrada'
 });
 
-export const INTERVALO_MINUTOS_AUDITORIA = 10; // Bloques mínimos de auditoría horaria
+export const INTERVALO_MINUTOS_AUDITORIA = 10;

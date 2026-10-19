@@ -2,7 +2,6 @@ import dns from 'dns';
 import mongoose from 'mongoose';
 import { ENV } from '../config/env.js';
 
-// Configuración DNS para resolución de registros SRV en Windows / Atlas
 try {
   dns.setServers(['8.8.8.8', '8.8.4.4']);
 } catch (e) {

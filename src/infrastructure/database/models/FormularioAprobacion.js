@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { MODALIDADES } from '../../../domain/constants/practicas.constants.js';
 
 const formularioAprobacionSchema = new mongoose.Schema(
   {
@@ -19,7 +20,7 @@ const formularioAprobacionSchema = new mongoose.Schema(
     },
     modalidad: {
       type: String,
-      enum: ['laboral', 'comunitario'],
+      enum: Object.values(MODALIDADES),
       required: true
     },
     horasCompletadas: {

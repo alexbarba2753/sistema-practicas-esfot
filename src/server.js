@@ -1,15 +1,16 @@
 import app from './app.js';
-import { connectDB } from './config/db.js';
-import { ENV } from './config/env.js';
+import { connectDB } from './infrastructure/database/db.js';
+import { ENV } from './infrastructure/config/env.js';
 
 const startServer = async () => {
   try {
-    // Conectar a MongoDB Atlas
+    // Conectar a MongoDB Atlas (Capa de Infraestructura)
     await connectDB();
 
-    // Iniciar servidor HTTP
+    // Iniciar servidor HTTP (Capa de Presentación)
     app.listen(ENV.PORT, () => {
       console.log(`[Servidor] Escuchando en http://localhost:${ENV.PORT}`);
+      console.log(`[Arquitectura] Hexagonal con principios de Clean Architecture`);
       console.log(`[Entorno] Modo: ${ENV.NODE_ENV}`);
       console.log(`[Health] http://localhost:${ENV.PORT}/api/health`);
     });

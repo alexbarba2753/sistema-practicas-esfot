@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { ROLES } from '../../../domain/constants/practicas.constants.js';
 
 const usuarioSchema = new mongoose.Schema(
   {
@@ -39,8 +40,8 @@ const usuarioSchema = new mongoose.Schema(
     },
     rol: {
       type: String,
-      enum: ['administrador', 'docente', 'estudiante'],
-      default: 'estudiante'
+      enum: Object.values(ROLES),
+      default: ROLES.ESTUDIANTE
     },
     estado: {
       type: String,

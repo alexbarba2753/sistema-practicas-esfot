@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { MODALIDADES, HORAS_REGLAMENTARIAS, ESTADOS_AULA } from '../../../domain/constants/practicas.constants.js';
 
 const aulaVirtualSchema = new mongoose.Schema(
   {
@@ -14,7 +15,7 @@ const aulaVirtualSchema = new mongoose.Schema(
     },
     modalidad: {
       type: String,
-      enum: ['laboral', 'comunitario'],
+      enum: Object.values(MODALIDADES),
       required: [true, 'La modalidad es obligatoria']
     },
     docenteTutor: {
@@ -31,7 +32,9 @@ const aulaVirtualSchema = new mongoose.Schema(
     horasRequeridas: {
       type: Number,
       default: function () {
-        return this.modalidad === 'laboral' ? 240 : 96;
+        return this.modalidad === MODALIDADES.LABORAL
+          ? HORAS_REGLAMENTARIAS.LABORAL
+          : HORAS_REGLAMENTARIAS.COMUNITARIO;
       }
     },
     fechaInicio: {
@@ -44,8 +47,8 @@ const aulaVirtualSchema = new mongoose.Schema(
     },
     estado: {
       type: String,
-      enum: ['abierta', 'cerrada'],
-      default: 'abierta'
+      enum: Object.values(ESTADOS_AULA),
+      default: ESTADOS_AULA.ABIERTA
     }
   },
   {

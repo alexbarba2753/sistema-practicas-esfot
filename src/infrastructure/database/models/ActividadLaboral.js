@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ESTADOS_ACTIVIDAD } from '../../../domain/constants/practicas.constants.js';
 
 const actividadLaboralSchema = new mongoose.Schema(
   {
@@ -39,8 +40,8 @@ const actividadLaboralSchema = new mongoose.Schema(
     },
     estadoAprobacion: {
       type: String,
-      enum: ['pendiente', 'aprobado', 'rechazado'],
-      default: 'pendiente'
+      enum: Object.values(ESTADOS_ACTIVIDAD),
+      default: ESTADOS_ACTIVIDAD.PENDIENTE
     },
     observacionesDocente: {
       type: String,

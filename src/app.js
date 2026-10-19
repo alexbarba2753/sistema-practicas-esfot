@@ -2,8 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import routes from './routes/index.js';
-import { errorHandler } from './middlewares/errorHandler.js';
+import routes from './presentation/routes/index.js';
+import { errorHandler } from './presentation/middlewares/errorHandler.js';
 
 const app = express();
 
@@ -14,7 +14,7 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rutas base de la API
+// Rutas base de la API (Capa de Presentación)
 app.use('/api', routes);
 
 // Middleware para manejo de 404

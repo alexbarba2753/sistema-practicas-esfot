@@ -1,6 +1,6 @@
 import dns from 'dns';
 import mongoose from 'mongoose';
-import { ENV } from './env.js';
+import { ENV } from '../config/env.js';
 
 // Configuración DNS para resolución de registros SRV en Windows / Atlas
 try {

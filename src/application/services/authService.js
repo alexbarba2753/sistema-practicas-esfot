@@ -8,7 +8,7 @@ import { ENV } from '../../infrastructure/config/env.js';
 
 export const authService = {
   /**
-   * Registro de un nuevo estudiante con validaciones y token de verificación
+   * Registro de un nuevo estudiante con validaciones y token unificado
    */
   async registrarEstudiante(datos) {
     const { cedula, nombres, apellidos, correo, password, telefono } = datos;
@@ -27,15 +27,16 @@ export const authService = {
       throw error;
     }
 
-    // 3. Validar formato de correo institucional
+    // 3. Validar formato de correo electrónico
     const correoLimpio = correo.toLowerCase().trim();
-    if (!correoLimpio.endsWith('@epn.edu.ec')) {
-      const error = new Error('El correo electrónico debe pertenecer al dominio institucional (@epn.edu.ec)');
+    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regexEmail.test(correoLimpio)) {
+      const error = new Error('El formato del correo electrónico no es válido');
       error.statusCode = 400;
       throw error;
     }
 
-    // 4. Validar contraseña mínima
+    // 4. Validar longitud mínima de contraseña
     if (password.length < 6) {
       const error = new Error('La contraseña debe tener un mínimo de 6 caracteres');
       error.statusCode = 400;
@@ -57,9 +58,9 @@ export const authService = {
       throw error;
     }
 
-    // 6. Generar token de verificación de cuenta (hexadecimal seguro)
-    const tokenVerificacion = crypto.randomBytes(24).toString('hex');
-    const tokenVerificacionExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+    // 6. Generar token temporal unificado (24 horas para activación)
+    const token = crypto.randomBytes(24).toString('hex');
+    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // 7. Crear el usuario en estado pendiente
     const nuevoUsuario = new Usuario({
@@ -71,25 +72,25 @@ export const authService = {
       telefono: telefono ? telefono.trim() : '',
       rol: ROLES.ESTUDIANTE,
       estado: 'pendiente',
-      tokenVerificacion,
-      tokenVerificacionExpires
+      token,
+      tokenExpires
     });
 
     await nuevoUsuario.save();
 
-    // 8. Enviar correo de verificación (SendGrid)
-    await emailAdapter.enviarTokenVerificacion(correoLimpio, nombres.trim(), tokenVerificacion);
+    // 8. Enviar correo de verificación
+    await emailAdapter.enviarTokenVerificacion(correoLimpio, nombres.trim(), token);
 
     return {
       success: true,
-      message: 'Registro exitoso. Se ha enviado un token de verificación a su correo institucional para activar la cuenta.',
+      message: 'Registro exitoso. Se ha enviado un token de verificación a su correo para activar la cuenta.',
       usuarioId: nuevoUsuario._id,
       correo: nuevoUsuario.correo
     };
   },
 
   /**
-   * Valida y activa la cuenta del usuario mediante el token recibido por correo
+   * Valida y activa la cuenta del usuario mediante el token recibido
    */
   async verificarCuenta(token) {
     if (!token) {
@@ -99,8 +100,8 @@ export const authService = {
     }
 
     const usuario = await Usuario.findOne({
-      tokenVerificacion: token.trim(),
-      tokenVerificacionExpires: { $gt: new Date() }
+      token: token.trim(),
+      tokenExpires: { $gt: new Date() }
     });
 
     if (!usuario) {
@@ -111,8 +112,8 @@ export const authService = {
 
     // Activar cuenta y limpiar token
     usuario.estado = 'activo';
-    usuario.tokenVerificacion = null;
-    usuario.tokenVerificacionExpires = null;
+    usuario.token = null;
+    usuario.tokenExpires = null;
     await usuario.save();
 
     return {
@@ -133,7 +134,7 @@ export const authService = {
 
     const correoLimpio = correo.toLowerCase().trim();
 
-    // Buscar usuario incluyendo el password seleccionado
+    // Buscar usuario incluyendo el password
     const usuario = await Usuario.findOne({ correo: correoLimpio }).select('+password');
     if (!usuario) {
       const error = new Error('Credenciales incorrectas');
@@ -295,7 +296,7 @@ export const authService = {
   },
 
   /**
-   * Genera un token temporal y envía el correo para restablecer contraseña
+   * Genera un token temporal unificado y envía el correo para restablecer contraseña
    */
   async solicitarRecuperacionPassword(correo) {
     if (!correo) {
@@ -315,9 +316,10 @@ export const authService = {
       };
     }
 
+    // Usar el mismo campo 'token' y 'tokenExpires' unificado (1 hora de validez)
     const resetToken = crypto.randomBytes(24).toString('hex');
-    usuario.resetPasswordToken = resetToken;
-    usuario.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hora de validez
+    usuario.token = resetToken;
+    usuario.tokenExpires = new Date(Date.now() + 60 * 60 * 1000);
     await usuario.save();
 
     // Enviar correo con SendGrid
@@ -325,12 +327,12 @@ export const authService = {
 
     return {
       success: true,
-      message: 'Se ha enviado un enlace con el token temporal de recuperación a su correo electrónico institucional.'
+      message: 'Se ha enviado un enlace con el token temporal de recuperación a su correo electrónico.'
     };
   },
 
   /**
-   * Restablece la contraseña utilizando el token temporal recibido
+   * Restablece la contraseña utilizando el token temporal unificado
    */
   async restablecerPassword(token, passwordNueva) {
     if (!token || !passwordNueva) {
@@ -345,9 +347,10 @@ export const authService = {
       throw error;
     }
 
+    // Buscar por el campo unificado 'token' y 'tokenExpires'
     const usuario = await Usuario.findOne({
-      resetPasswordToken: token.trim(),
-      resetPasswordExpires: { $gt: new Date() }
+      token: token.trim(),
+      tokenExpires: { $gt: new Date() }
     });
 
     if (!usuario) {
@@ -356,10 +359,10 @@ export const authService = {
       throw error;
     }
 
-    // Actualizar contraseña y limpiar tokens de recuperación
+    // Actualizar contraseña y limpiar token unificado
     usuario.password = passwordNueva;
-    usuario.resetPasswordToken = null;
-    usuario.resetPasswordExpires = null;
+    usuario.token = null;
+    usuario.tokenExpires = null;
     await usuario.save();
 
     return {

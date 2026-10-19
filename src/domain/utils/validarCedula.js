@@ -1,6 +1,5 @@
 /**
- * Validador de cédula de identidad ecuatoriana (Algoritmo Módulo 10)
- * Regla de negocio pura del Dominio
+ * Validador de cédula de identidad ecuatoriana 
  */
 export const validarCedula = (cedula) => {
   if (typeof cedula !== 'string') return false;

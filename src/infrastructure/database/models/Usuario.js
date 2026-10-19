@@ -48,19 +48,11 @@ const usuarioSchema = new mongoose.Schema(
       enum: ['activo', 'inactivo', 'pendiente'],
       default: 'pendiente'
     },
-    tokenVerificacion: {
+    token: {
       type: String,
       default: null
     },
-    tokenVerificacionExpires: {
-      type: Date,
-      default: null
-    },
-    resetPasswordToken: {
-      type: String,
-      default: null
-    },
-    resetPasswordExpires: {
+    tokenExpires: {
       type: Date,
       default: null
     }

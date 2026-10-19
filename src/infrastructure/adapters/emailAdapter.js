@@ -6,9 +6,7 @@ if (ENV.SENDGRID_API_KEY) {
 }
 
 export const emailAdapter = {
-  /**
-   * Envía correo con el token de activación de cuenta
-   */
+
   async enviarTokenVerificacion(correo, nombres, token) {
     const asunto = 'Verificación de Cuenta - Sistema de Prácticas ESFOT';
     const mensajeTexto = `Hola ${nombres},\n\nGracias por registrarte en el Sistema de Gestión de Prácticas Laborales y Comunitarias de la ESFOT - EPN.\n\nTu token de activación es:\n${token}\n\nIngresa este token en el sistema para activar tu cuenta e iniciar sesión.\n\nSaludos,\nComisión de Prácticas ESFOT`;
@@ -44,15 +42,12 @@ export const emailAdapter = {
       return true;
     } catch (error) {
       console.error('[SendGrid] Error al enviar correo de verificación:', error.response?.body || error.message);
-      // Logueamos el token en consola para no bloquear pruebas locales
       console.log(`[SendGrid Fallback] Token para pruebas locales de ${correo}: ${token}`);
       return false;
     }
   },
 
-  /**
-   * Envía correo con token para restablecer contraseña
-   */
+
   async enviarTokenRecuperacion(correo, nombres, token) {
     const asunto = 'Recuperación de Contraseña - Sistema de Prácticas ESFOT';
     const mensajeTexto = `Hola ${nombres},\n\nHas solicitado restablecer tu contraseña en el Sistema de Prácticas ESFOT.\n\nTu token temporal de recuperación es:\n${token}\n\nEste token tiene una validez de 1 hora. Si no realizaste esta solicitud, ignora este mensaje.\n\nSaludos,\nComisión de Prácticas ESFOT`;

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { MODALIDADES } from '../../../domain/constants/practicas.constants.js';
+import { MODALIDADES } from '../../../domain/constants/practicasConstants.js';
 
 const formularioAprobacionSchema = new mongoose.Schema(
   {

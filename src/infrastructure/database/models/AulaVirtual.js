@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { MODALIDADES, HORAS_REGLAMENTARIAS, ESTADOS_AULA } from '../../../domain/constants/practicas.constants.js';
+import { MODALIDADES, HORAS_REGLAMENTARIAS, ESTADOS_AULA } from '../../../domain/constants/practicasConstants.js';
 
 const aulaVirtualSchema = new mongoose.Schema(
   {
@@ -10,7 +10,7 @@ const aulaVirtualSchema = new mongoose.Schema(
     },
     periodo: {
       type: String,
-      required: [true, 'El período académico es obligatorio (ej. 2026-A)'],
+      required: [true, 'El período académico es obligatorio'],
       trim: true
     },
     modalidad: {

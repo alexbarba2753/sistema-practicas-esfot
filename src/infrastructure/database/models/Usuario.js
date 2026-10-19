@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { ROLES } from '../../../domain/constants/practicas.constants.js';
+import { ROLES } from '../../../domain/constants/practicasConstants.js';
 
 const usuarioSchema = new mongoose.Schema(
   {
@@ -45,8 +45,16 @@ const usuarioSchema = new mongoose.Schema(
     },
     estado: {
       type: String,
-      enum: ['activo', 'inactivo'],
-      default: 'activo'
+      enum: ['activo', 'inactivo', 'pendiente'],
+      default: 'pendiente'
+    },
+    tokenVerificacion: {
+      type: String,
+      default: null
+    },
+    tokenVerificacionExpires: {
+      type: Date,
+      default: null
     },
     resetPasswordToken: {
       type: String,
@@ -63,14 +71,12 @@ const usuarioSchema = new mongoose.Schema(
   }
 );
 
-// Hash de contraseña antes de guardar
 usuarioSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Método para comparar contraseñas
 usuarioSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };

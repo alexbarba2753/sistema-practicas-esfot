@@ -5,7 +5,7 @@ export const ENV = {
   PORT: process.env.PORT || 3000,
   NODE_ENV: process.env.NODE_ENV || 'development',
   MONGODB_URI: process.env.MONGODB_URI,
-  JWT_SECRET: process.env.JWT_SECRET || 'secret_fallback_key',
+  JWT_SECRET: process.env.JWT_SECRET || 'secret_key',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
   JWT_RESET_SECRET: process.env.JWT_RESET_SECRET || 'reset_secret_key',
   JWT_RESET_EXPIRES_IN: process.env.JWT_RESET_EXPIRES_IN || '1h',

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { ESTADOS_ACTIVIDAD } from '../../../domain/constants/practicas.constants.js';
+import { ESTADOS_ACTIVIDAD } from '../../../domain/constants/practicasConstants.js';
 
 const actividadLaboralSchema = new mongoose.Schema(
   {

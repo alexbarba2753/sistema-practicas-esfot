@@ -1,6 +1,6 @@
 import { connectDB, disconnectDB } from '../db.js';
 import {Usuario} from '../models/index.js';
-import { ROLES } from '../../../domain/constants/practicas.constants.js';
+import { ROLES } from '../../../domain/constants/practicasConstants.js';
 
 const initDatabase = async () => {
   try {

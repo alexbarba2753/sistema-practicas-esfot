@@ -8,10 +8,10 @@ import { ENV } from '../../infrastructure/config/env.js';
 
 export const authService = {
   /**
-   * Registro de un nuevo estudiante con validaciones y token unificado
+   * Registro de un nuevo usuario (Estudiante, Docente, Administrador) con validaciones y token unificado
    */
-  async registrarEstudiante(datos) {
-    const { cedula, nombres, apellidos, correo, password, telefono } = datos;
+  async registrarUsuario(datos) {
+    const { cedula, nombres, apellidos, correo, password, telefono, rol } = datos;
 
     // 1. Validar campos obligatorios
     if (!cedula || !nombres || !apellidos || !correo || !password) {
@@ -43,6 +43,9 @@ export const authService = {
       throw error;
     }
 
+    // Validar rol si es provisto (por defecto ESTUDIANTE)
+    const rolValido = rol && Object.values(ROLES).includes(rol) ? rol : ROLES.ESTUDIANTE;
+
     // 5. Comprobar duplicidad de cédula o correo
     const usuarioExistente = await Usuario.findOne({
       $or: [{ cedula: cedula.trim() }, { correo: correoLimpio }]
@@ -70,7 +73,7 @@ export const authService = {
       correo: correoLimpio,
       password,
       telefono: telefono ? telefono.trim() : '',
-      rol: ROLES.ESTUDIANTE,
+      rol: rolValido,
       estado: 'pendiente',
       token,
       tokenExpires
@@ -86,6 +89,7 @@ export const authService = {
       message: 'Registro exitoso. Se ha enviado un token de verificación a su correo para activar la cuenta.',
       usuarioId: nuevoUsuario._id,
       correo: nuevoUsuario.correo,
+      rol: nuevoUsuario.rol,
       tokenVerificacion: token
     };
   },

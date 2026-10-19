@@ -3,7 +3,7 @@ import { authService } from '../../application/services/authService.js';
 export const authController = {
   async registro(req, res, next) {
     try {
-      const resultado = await authService.registrarEstudiante(req.body);
+      const resultado = await authService.registrarUsuario(req.body);
       res.status(201).json(resultado);
     } catch (error) {
       next(error);

@@ -85,7 +85,8 @@ export const authService = {
       success: true,
       message: 'Registro exitoso. Se ha enviado un token de verificación a su correo para activar la cuenta.',
       usuarioId: nuevoUsuario._id,
-      correo: nuevoUsuario.correo
+      correo: nuevoUsuario.correo,
+      tokenVerificacion: token
     };
   },
 
@@ -327,7 +328,8 @@ export const authService = {
 
     return {
       success: true,
-      message: 'Se ha enviado un enlace con el token temporal de recuperación a su correo electrónico.'
+      message: 'Se ha enviado un enlace con el token temporal de recuperación a su correo electrónico.',
+      tokenRecuperacion: resetToken
     };
   },
 

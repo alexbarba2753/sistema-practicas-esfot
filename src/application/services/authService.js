@@ -58,7 +58,7 @@ export const authService = {
       throw error;
     }
 
-    // 6. Generar token temporal unificado (24 horas para activación)
+    // 6. Generar token temporal (24 horas para activación)
     const token = crypto.randomBytes(24).toString('hex');
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -285,7 +285,7 @@ export const authService = {
       throw error;
     }
 
-    // Actualizar con la nueva clave (el hook pre-save de Usuario.js la hashea automáticamente)
+    // Actualizar con la nueva clave 
     usuario.password = passwordNueva;
     await usuario.save();
 
@@ -316,7 +316,7 @@ export const authService = {
       };
     }
 
-    // Usar el mismo campo 'token' y 'tokenExpires' unificado (1 hora de validez)
+    // Token (1 hora de validez)
     const resetToken = crypto.randomBytes(24).toString('hex');
     usuario.token = resetToken;
     usuario.tokenExpires = new Date(Date.now() + 60 * 60 * 1000);
@@ -347,7 +347,7 @@ export const authService = {
       throw error;
     }
 
-    // Buscar por el campo unificado 'token' y 'tokenExpires'
+    // Buscar por el campo token
     const usuario = await Usuario.findOne({
       token: token.trim(),
       tokenExpires: { $gt: new Date() }

@@ -22,22 +22,22 @@ El backend está estructurado bajo **Arquitectura Hexagonal (Ports and Adapters)
 src/
 ├── domain/                      # Capa de Dominio (Entidades, Reglas de Negocio Puras)
 │   ├── constants/               # Constantes del dominio (Roles, Modalidades, Estados, Horas)
-│   └── utils/                   # Utilidades de negocio (Validación de Cédula Ecuatoriana - Módulo 10)
+│   └── utils/                   # Utilidades de negocio (Validación Cédula Módulo 10, Fragmentador RAG)
 │
-├── application/                 # Capa de Aplicación (Casos de Uso / Servicios)
-│   └── services/                # Servicios de negocio (authService)
+├── application/                 # Capa de Aplicación (Casos de Uso / Servicios de Negocio)
+│   └── services/                # authService, adminUsuariosService, aulaVirtualService, fuenteService
 │
 ├── infrastructure/              # Capa de Infraestructura (Adaptadores externos y DB)
 │   ├── adapters/                # Adaptador de correos con SendGrid y fallback local
 │   ├── config/                  # Variables de entorno centralizadas
 │   └── database/                # Conexión resiliente a Atlas, Modelos Mongoose y Scripts de Seed
-│       ├── models/              # Modelos de datos (Usuario, AulaVirtual, Actividades, etc.)
+│       ├── models/              # Modelos de datos (Usuario, AulaVirtual, FuenteInstitucional, etc.)
 │       └── scripts/             # Script de inicialización y siembra de Administrador
 │
 └── presentation/                # Capa de Presentación (Controladores, Rutas y Middlewares)
-    ├── controllers/             # Controladores HTTP
-    ├── middlewares/             # Autenticación JWT y Manejo Global de Errores
-    └── routes/                  # Definición y montaje de endpoints RESTful
+    ├── controllers/             # authController, adminUsuariosController, aulaVirtualController, fuenteController
+    ├── middlewares/             # authMiddleware (JWT), roleMiddleware (RBAC) y errorHandler (Global)
+    └── routes/                  # Definición y montaje de endpoints RESTful (/api/auth, /api/admin)
 ```
 
 ---
@@ -70,18 +70,36 @@ El desarrollo se encuentra estrictamente apegado a las librerías documentadas e
   2. `aulas_virtuales`: Periodos académicos y asignación de prácticas.
   3. `actividades_laborales`: Registro y validación de prácticas laborales.
   4. `actividades_comunitarias`: Registro y validación de prácticas de servicio comunitario.
-  5. `fuentes_institucionales`: Catálogo de convenios y empresas receptoras.
+  5. `fuentes_institucionales`: Catálogo normativo e insumos indexados para la IA.
   6. `formularios_aprobacion`: Solicitudes y dictámenes de aprobación.
 * Auto-sembrado del **Usuario Administrador Inicial** al arrancar el servidor (`admin@epn.edu.ec`).
 
-#### ✅ Sprint 1: Cuentas Administrador, Docente y Estudiante
-* **Registro de Usuarios:** Creación de cuentas para los 3 roles con validación de cédula ecuatoriana y formato de correo.
+#### ✅ Sprint 1: Autenticación, Registro y Perfil (Estudiante, Docente y Administrador)
+* **Registro de Usuarios:** Creación de cuentas para los 3 roles con validación de cédula ecuatoriana y formato de correo institucional o personal.
 * **Verificación de Cuentas:** Generación de token temporal unificado (24h) y activación de cuenta para habilitar el acceso.
 * **Autenticación y Sesiones:** Inicio de sesión seguro con verificación de hash (`bcryptjs`) y generación de token de acceso JWT.
 * **Gestión de Perfil:** Consulta y actualización de datos personales (nombres, apellidos, teléfono).
 * **Seguridad de Credenciales:** Cambio de contraseña solicitando validación de la contraseña actual.
 * **Recuperación de Contraseña:** Generación de token temporal seguro (1h) y restablecimiento de contraseña olvidada.
 * **Cierre de Sesión:** Endpoint para invalidar acceso en frontend.
+
+#### ✅ Sprint 2: Rol Administrador (Gestión General del Sistema)
+* **Administración de cuentas de docentes y estudiantes:**
+  * Alta directa de docentes y alumnos desde el rol administrador sin colisión de cédula o correo.
+  * Listado general de usuarios con filtros combinados por rol (`docente`, `estudiante`, `administrador`), estado (`activo`, `inactivo`, `pendiente`) y búsqueda por texto.
+  * Consulta detallada de usuario por ID y actualización de datos de contacto.
+  * Suspensión y reactivación inmediata de cuentas (`activo` / `inactivo`).
+* **Creación y parametrización de aulas virtuales:**
+  * Apertura de aulas asociadas a un período lectivo con cálculo automático de horas reglamentarias: **240 horas** para prácticas laborales y **96 horas** para comunitarias.
+  * Asignación obligatoria y validada de docente tutor activo.
+  * Matriculación unitaria o masiva de estudiantes con control estricto de no duplicidad.
+  * Desmatriculación de alumnos y fijación de fechas límite de entrega.
+* **Ingesta y gestión de fuentes institucionales para la IA (RAG):**
+  * Carga y catalogación de normativa de la ESFOT (reglamentos, instructivos, resoluciones y formatos).
+  * Algoritmo de fragmentación de texto ordenado (`textChunker.js`) que segmenta párrafos extensos en fragmentos indexados preservando coherencia léxica para el asistente inteligente.
+  * Reindexación automática de fragmentos ante actualizaciones de contenido y control de vigencia (`activo` / `inactivo`).
+* **Control de Acceso Basado en Roles (RBAC):**
+  * Middleware de autorización `requireRole(ROLES.ADMINISTRADOR)` que protege integralmente las rutas bajo `/api/admin`.
 
 ---
 
@@ -127,11 +145,11 @@ El desarrollo se encuentra estrictamente apegado a las librerías documentadas e
 
 ---
 
-### 🧪 Pruebas de Endpoints (Postman)
+### 🧪 Colección Oficial de Endpoints (Postman)
 
-La colección de Postman oficial del proyecto se encuentra estructurada por roles para cubrir la totalidad de flujos del Sprint 1:
+La colección de Postman oficial del proyecto se encuentra estructurada y sincronizada por roles y módulos de trabajo:
 
-* **Estudiante:**
+* **Estudiante (`Autenticación y Perfil`):**
   1. `1.- Registro de Estudiante`
   2. `2.- Verificar Cuenta`
   3. `3.- Inicio de Sesión`
@@ -141,7 +159,27 @@ La colección de Postman oficial del proyecto se encuentra estructurada por role
   7. `7.- Solicitar Recuperación de Contraseña`
   8. `8.- Restablecer Contraseña`
   9. `9.- Cerrar Sesión`
-* **Docente:** Flujo completo de 9 pasos con rol docente.
-* **Administrador:** Flujo completo de 9 pasos con rol administrador.
+* **Docente (`Autenticación y Perfil`):** Flujo completo de 9 pasos con rol docente.
+* **Administrador (`Autenticación y Perfil`):** Flujo completo de 9 pasos con rol administrador.
+* **Administrador (`Gestión de Usuarios`):**
+  1. `1.- Crear Usuario por Administrador` (`POST /api/admin/usuarios`)
+  2. `2.- Listar Usuarios con Filtros` (`GET /api/admin/usuarios`)
+  3. `3.- Consultar Usuario por ID` (`GET /api/admin/usuarios/:id`)
+  4. `4.- Actualizar Datos de Usuario` (`PUT /api/admin/usuarios/:id`)
+  5. `5.- Cambiar Estado de Usuario` (`PATCH /api/admin/usuarios/:id/estado`)
+* **Administrador (`Aulas Virtuales`):**
+  1. `1.- Crear Aula Virtual` (`POST /api/admin/aulas-virtuales`)
+  2. `2.- Listar Aulas Virtuales` (`GET /api/admin/aulas-virtuales`)
+  3. `3.- Consultar Aula Virtual por ID` (`GET /api/admin/aulas-virtuales/:id`)
+  4. `4.- Actualizar Aula Virtual` (`PUT /api/admin/aulas-virtuales/:id`)
+  5. `5.- Matricular Estudiantes en Aula` (`POST /api/admin/aulas-virtuales/:id/estudiantes`)
+  6. `6.- Desmatricular Estudiante de Aula` (`DELETE /api/admin/aulas-virtuales/:id/estudiantes/:estudianteId`)
+* **Administrador (`Ingesta de Fuentes IA`):**
+  1. `1.- Ingestar Documento Normativo` (`POST /api/admin/fuentes`)
+  2. `2.- Listar Fuentes Institucionales` (`GET /api/admin/fuentes`)
+  3. `3.- Consultar Fuente y Fragmentos por ID` (`GET /api/admin/fuentes/:id`)
+  4. `4.- Actualizar Documento Normativo` (`PUT /api/admin/fuentes/:id`)
+  5. `5.- Cambiar Vigencia de Fuente` (`PATCH /api/admin/fuentes/:id/estado`)
+  6. `6.- Eliminar Fuente Institucional` (`DELETE /api/admin/fuentes/:id`)
 
-*(Los scripts de prueba de Postman capturan y transmiten automáticamente las variables `tokenVerificacion`, `token` JWT y `tokenRecuperacion` para permitir ejecuciones continuas sin intervención manual).*
+*(Los scripts de prueba automáticos de Postman almacenan y encadenan `token`, `usuarioId`, `docenteId`, `estudianteId`, `aulaId` y `fuenteId` en las variables de colección y entorno para agilizar la ejecución y captura de evidencias).*

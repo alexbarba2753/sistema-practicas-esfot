@@ -21,6 +21,18 @@ const fuenteInstitucionalSchema = new mongoose.Schema(
       type: String,
       required: [true, 'El contenido textual o resumen para el modelo RAG es obligatorio']
     },
+    fragmentos: [
+      {
+        orden: {
+          type: Number,
+          required: true
+        },
+        texto: {
+          type: String,
+          required: true
+        }
+      }
+    ],
     enlaceUrl: {
       type: String,
       trim: true,

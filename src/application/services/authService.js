@@ -7,6 +7,8 @@ import { errorHttp } from '../../domain/utils/errorHttp.js';
 import { emailAdapter } from '../../infrastructure/adapters/emailAdapter.js';
 import { ENV } from '../../infrastructure/config/env.js';
 
+import { toUsuarioDto } from '../dtos/index.js';
+
 export const authService = {
   /**
    * Registro de un nuevo usuario con verificación por correo (Estudiante, Docente, Administrador)
@@ -114,15 +116,7 @@ export const authService = {
       success: true,
       message: 'Inicio de sesión exitoso',
       token,
-      usuario: {
-        id: usuario._id,
-        cedula: usuario.cedula,
-        nombres: usuario.nombres,
-        apellidos: usuario.apellidos,
-        correo: usuario.correo,
-        rol: usuario.rol,
-        telefono: usuario.telefono
-      }
+      usuario: toUsuarioDto(usuario)
     };
   },
 
@@ -135,17 +129,7 @@ export const authService = {
 
     return {
       success: true,
-      usuario: {
-        id: usuario._id,
-        cedula: usuario.cedula,
-        nombres: usuario.nombres,
-        apellidos: usuario.apellidos,
-        correo: usuario.correo,
-        rol: usuario.rol,
-        telefono: usuario.telefono,
-        estado: usuario.estado,
-        createdAt: usuario.createdAt
-      }
+      usuario: toUsuarioDto(usuario)
     };
   },
 
@@ -169,15 +153,7 @@ export const authService = {
     return {
       success: true,
       message: 'Perfil actualizado exitosamente',
-      usuario: {
-        id: usuario._id,
-        cedula: usuario.cedula,
-        nombres: usuario.nombres,
-        apellidos: usuario.apellidos,
-        correo: usuario.correo,
-        rol: usuario.rol,
-        telefono: usuario.telefono
-      }
+      usuario: toUsuarioDto(usuario)
     };
   },
 

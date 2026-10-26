@@ -3,6 +3,7 @@ import { ROLES } from '../../domain/constants/practicasConstants.js';
 import { validarCedula } from '../../domain/utils/validarCedula.js';
 import { validarDatosUsuario } from '../../domain/utils/validarUsuario.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
+import { toUsuarioDto, toUsuarioListDto } from '../dtos/index.js';
 
 export const adminUsuariosService = {
   /**
@@ -51,16 +52,7 @@ export const adminUsuariosService = {
     return {
       success: true,
       message: 'Usuario registrado exitosamente por el Administrador',
-      usuario: {
-        id: nuevoUsuario._id,
-        cedula: nuevoUsuario.cedula,
-        nombres: nuevoUsuario.nombres,
-        apellidos: nuevoUsuario.apellidos,
-        correo: nuevoUsuario.correo,
-        rol: nuevoUsuario.rol,
-        estado: nuevoUsuario.estado,
-        telefono: nuevoUsuario.telefono
-      }
+      usuario: toUsuarioDto(nuevoUsuario)
     };
   },
 
@@ -90,7 +82,7 @@ export const adminUsuariosService = {
     return {
       success: true,
       total: usuarios.length,
-      usuarios
+      usuarios: toUsuarioListDto(usuarios)
     };
   },
 
@@ -103,7 +95,7 @@ export const adminUsuariosService = {
 
     return {
       success: true,
-      usuario
+      usuario: toUsuarioDto(usuario)
     };
   },
 
@@ -146,16 +138,7 @@ export const adminUsuariosService = {
     return {
       success: true,
       message: 'Datos del usuario actualizados exitosamente',
-      usuario: {
-        id: usuario._id,
-        cedula: usuario.cedula,
-        nombres: usuario.nombres,
-        apellidos: usuario.apellidos,
-        correo: usuario.correo,
-        rol: usuario.rol,
-        estado: usuario.estado,
-        telefono: usuario.telefono
-      }
+      usuario: toUsuarioDto(usuario)
     };
   },
 

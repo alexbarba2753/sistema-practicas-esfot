@@ -1,6 +1,7 @@
 import { AulaVirtual, Usuario } from '../../infrastructure/database/models/index.js';
 import { MODALIDADES, ROLES, ESTADOS_AULA } from '../../domain/constants/practicasConstants.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
+import { toAulaVirtualDto, toAulaVirtualListDto } from '../dtos/index.js';
 
 export const aulaVirtualService = {
   /**
@@ -61,7 +62,7 @@ export const aulaVirtualService = {
     return {
       success: true,
       message: 'Aula virtual creada y parametrizada exitosamente',
-      aulaVirtual: aulaPoblada
+      aulaVirtual: toAulaVirtualDto(aulaPoblada)
     };
   },
 
@@ -80,16 +81,10 @@ export const aulaVirtualService = {
       .select('-__v')
       .sort({ createdAt: -1 });
 
-    const aulasVirtuales = aulas.map((a) => {
-      const obj = a.toObject();
-      obj.totalEstudiantes = a.estudiantes ? a.estudiantes.length : 0;
-      return obj;
-    });
-
     return {
       success: true,
-      total: aulasVirtuales.length,
-      aulasVirtuales
+      total: aulas.length,
+      aulasVirtuales: toAulaVirtualListDto(aulas)
     };
   },
 
@@ -105,7 +100,7 @@ export const aulaVirtualService = {
 
     return {
       success: true,
-      aulaVirtual: aula
+      aulaVirtual: toAulaVirtualDto(aula)
     };
   },
 
@@ -148,7 +143,7 @@ export const aulaVirtualService = {
     return {
       success: true,
       message: 'Aula virtual actualizada exitosamente',
-      aulaVirtual: aulaActualizada
+      aulaVirtual: toAulaVirtualDto(aulaActualizada)
     };
   },
 

@@ -24,7 +24,8 @@ src/
 │   ├── constants/               # Constantes del dominio (Roles, Modalidades, Estados, Horas)
 │   └── utils/                   # Utilidades de negocio (Validación Cédula Módulo 10, Fragmentador RAG)
 │
-├── application/                 # Capa de Aplicación (Casos de Uso / Servicios de Negocio)
+├── application/                 # Capa de Aplicación (Casos de Uso, DTOs y Servicios de Negocio)
+│   ├── dtos/                    # DTOs y Mappers (usuarioDto, aulaVirtualDto, fuenteDto)
 │   └── services/                # authService, adminUsuariosService, aulaVirtualService, fuenteService
 │
 ├── infrastructure/              # Capa de Infraestructura (Adaptadores externos y DB)

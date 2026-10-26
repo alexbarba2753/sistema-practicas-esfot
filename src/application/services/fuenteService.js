@@ -1,6 +1,7 @@
 import { FuenteInstitucional } from '../../infrastructure/database/models/index.js';
 import { dividirEnFragmentos } from '../../domain/utils/textChunker.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
+import { toFuenteDto, toFuenteDetalleDto, toFuenteListDto } from '../dtos/index.js';
 
 const CATEGORIAS_VALIDAS = ['reglamento', 'instructivo', 'formato', 'resolucion', 'general'];
 
@@ -19,7 +20,7 @@ export const fuenteService = {
       throw errorHttp(`Categoría inválida. Permitidas: ${CATEGORIAS_VALIDAS.join(', ')}`, 400);
     }
 
-    // Fragmentación secuencial de texto
+    // Fragmentación secuencial de texto para RAG
     const fragmentos = dividirEnFragmentos(contenido);
 
     const nuevaFuente = new FuenteInstitucional({
@@ -40,16 +41,7 @@ export const fuenteService = {
       success: true,
       message: 'Fuente institucional procesada, fragmentada e indexada exitosamente',
       totalFragmentos: fragmentos.length,
-      fuente: {
-        id: nuevaFuente._id,
-        titulo: nuevaFuente.titulo,
-        categoria: nuevaFuente.categoria,
-        descripcion: nuevaFuente.descripcion,
-        version: nuevaFuente.version,
-        activo: nuevaFuente.activo,
-        totalFragmentos: fragmentos.length,
-        createdAt: nuevaFuente.createdAt
-      }
+      fuente: toFuenteDto(nuevaFuente)
     };
   },
 
@@ -73,7 +65,7 @@ export const fuenteService = {
     return {
       success: true,
       total: fuentes.length,
-      fuentes
+      fuentes: toFuenteListDto(fuentes)
     };
   },
 
@@ -88,7 +80,7 @@ export const fuenteService = {
 
     return {
       success: true,
-      fuente
+      fuente: toFuenteDetalleDto(fuente)
     };
   },
 
@@ -122,15 +114,7 @@ export const fuenteService = {
       message: 'Fuente institucional actualizada exitosamente',
       fragmentosActualizados: fragmentosRecalculados,
       totalFragmentos: fuente.fragmentos.length,
-      fuente: {
-        id: fuente._id,
-        titulo: fuente.titulo,
-        categoria: fuente.categoria,
-        version: fuente.version,
-        activo: fuente.activo,
-        totalFragmentos: fuente.fragmentos.length,
-        updatedAt: fuente.updatedAt
-      }
+      fuente: toFuenteDto(fuente)
     };
   },
 
@@ -147,11 +131,7 @@ export const fuenteService = {
     return {
       success: true,
       message: `Fuente institucional ${fuente.activo ? 'activada' : 'desactivada'} exitosamente`,
-      fuente: {
-        id: fuente._id,
-        titulo: fuente.titulo,
-        activo: fuente.activo
-      }
+      fuente: toFuenteDto(fuente)
     };
   },
 

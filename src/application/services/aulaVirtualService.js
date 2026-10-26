@@ -1,53 +1,67 @@
 import { AulaVirtual, Usuario } from '../../infrastructure/database/models/index.js';
-import { MODALIDADES, ROLES, ESTADOS_AULA } from '../../domain/constants/practicasConstants.js';
+import { MODALIDADES, ROLES, ESTADOS_AULA, HORAS_REGLAMENTARIAS } from '../../domain/constants/practicasConstants.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
 import { toAulaVirtualDto, toAulaVirtualListDto } from '../dtos/index.js';
 
 export const aulaVirtualService = {
   /**
-   * Crea y parametriza un aula virtual con cálculo automático de 240/96 horas
+   * Crea y parametriza un aula virtual para 1 docente tutor y 1 estudiante
+   * Calcula automáticamente 240 horas para laboral o 96 horas para comunitario
    */
   async crearAulaVirtual(datos) {
-    const { nombre, periodo, modalidad, docenteTutor, estudiantes = [], fechaInicio } = datos;
+    const { nombre, periodo, modalidad, docenteTutor, fechaInicio } = datos;
     const fechaFin = datos.fechaFin || datos.fechaLimiteEntrega;
+    const estudianteId = datos.estudiante || datos.estudianteId || (Array.isArray(datos.estudiantes) ? datos.estudiantes[0] : null);
 
-    // Validar obligatorios y reglas básicas
-    if (!nombre || !periodo || !modalidad || !docenteTutor || !fechaFin) {
-      throw errorHttp('Nombre, período, modalidad, docente tutor y fecha límite de entrega son obligatorios', 400);
+    // 1. Validar campos obligatorios
+    if (!nombre || !periodo || !modalidad || !docenteTutor || !estudianteId || !fechaFin) {
+      throw errorHttp('Nombre, período, modalidad, docente tutor, estudiante y fecha límite de entrega son obligatorios', 400);
     }
+
     if (!Object.values(MODALIDADES).includes(modalidad)) {
       throw errorHttp(`Modalidad no válida. Permitidas: ${Object.values(MODALIDADES).join(', ')}`, 400);
     }
 
-    // Validar que el tutor exista y sea docente
+    // 2. Validar que el tutor exista y tenga rol docente
     const tutor = await Usuario.findById(docenteTutor);
     if (!tutor || tutor.rol !== ROLES.DOCENTE) {
       throw errorHttp('El docente tutor asignado no existe o no tiene el rol de docente', 400);
     }
 
-    // Validar coherencia de fechas
+    // 3. Validar que el estudiante exista y tenga rol estudiante
+    const alumno = await Usuario.findById(estudianteId);
+    if (!alumno || alumno.rol !== ROLES.ESTUDIANTE) {
+      throw errorHttp('El estudiante asignado no existe o no tiene el rol de estudiante', 400);
+    }
+
+    // 4. Regla de negocio: Un estudiante solo puede estar en 1 sola aula virtual activa
+    const aulaActiva = await AulaVirtual.findOne({
+      estudiante: alumno._id,
+      estado: ESTADOS_AULA.ABIERTA
+    });
+    if (aulaActiva) {
+      throw errorHttp('El estudiante ya se encuentra matriculado en un aula virtual activa en el sistema', 409);
+    }
+
+    // 5. Validar coherencia de fechas
     const fInicio = fechaInicio ? new Date(fechaInicio) : new Date();
     const fFin = new Date(fechaFin);
     if (isNaN(fFin.getTime()) || fFin <= fInicio) {
-      throw errorHttp('La fecha límite debe tener un formato válido y ser posterior al inicio', 400);
+      throw errorHttp('La fecha límite debe ser una fecha válida y posterior al inicio', 400);
     }
 
-    // Validar estudiantes iniciales si fueron enviados
-    let estudiantesValidos = [];
-    if (Array.isArray(estudiantes) && estudiantes.length > 0) {
-      const encontrados = await Usuario.find({ _id: { $in: estudiantes }, rol: ROLES.ESTUDIANTE });
-      if (encontrados.length !== estudiantes.length) {
-        throw errorHttp('Uno o más estudiantes especificados no existen o no tienen rol de estudiante', 400);
-      }
-      estudiantesValidos = encontrados.map((e) => e._id);
-    }
+    // 6. Horas según modalidad (240 laboral, 96 comunitario)
+    const horasRequeridas = modalidad === MODALIDADES.LABORAL
+      ? HORAS_REGLAMENTARIAS.LABORAL
+      : HORAS_REGLAMENTARIAS.COMUNITARIO;
 
     const nuevaAula = new AulaVirtual({
       nombre: nombre.trim(),
       periodo: periodo.trim(),
       modalidad,
       docenteTutor: tutor._id,
-      estudiantes: estudiantesValidos,
+      estudiante: alumno._id,
+      horasRequeridas,
       fechaInicio: fInicio,
       fechaFin: fFin,
       estado: ESTADOS_AULA.ABIERTA
@@ -57,17 +71,17 @@ export const aulaVirtualService = {
 
     const aulaPoblada = await AulaVirtual.findById(nuevaAula._id)
       .populate('docenteTutor', 'nombres apellidos correo telefono')
-      .populate('estudiantes', 'nombres apellidos correo cedula');
+      .populate('estudiante', 'nombres apellidos correo cedula telefono estado');
 
     return {
       success: true,
-      message: 'Aula virtual creada y parametrizada exitosamente',
+      message: 'Aula virtual creada y parametrizada exitosamente para el estudiante y docente tutor',
       aulaVirtual: toAulaVirtualDto(aulaPoblada)
     };
   },
 
   /**
-   * Consulta las aulas virtuales con filtros por periodo, modalidad o tutor
+   * Consulta las aulas virtuales con filtros por periodo, modalidad, tutor o estudiante
    */
   async listarAulasVirtuales(filtros = {}) {
     const query = {};
@@ -75,9 +89,11 @@ export const aulaVirtualService = {
     if (filtros.modalidad && Object.values(MODALIDADES).includes(filtros.modalidad)) query.modalidad = filtros.modalidad;
     if (filtros.estado && Object.values(ESTADOS_AULA).includes(filtros.estado)) query.estado = filtros.estado;
     if (filtros.docenteTutor) query.docenteTutor = filtros.docenteTutor;
+    if (filtros.estudiante) query.estudiante = filtros.estudiante;
 
     const aulas = await AulaVirtual.find(query)
       .populate('docenteTutor', 'nombres apellidos correo telefono')
+      .populate('estudiante', 'nombres apellidos correo cedula telefono estado')
       .select('-__v')
       .sort({ createdAt: -1 });
 
@@ -89,12 +105,12 @@ export const aulaVirtualService = {
   },
 
   /**
-   * Obtiene el detalle de un aula virtual con sus alumnos y tutor asignado
+   * Obtiene el detalle de un aula virtual con su docente tutor y estudiante
    */
   async obtenerAulaVirtualPorId(aulaId) {
     const aula = await AulaVirtual.findById(aulaId)
       .populate('docenteTutor', 'nombres apellidos correo telefono')
-      .populate('estudiantes', 'nombres apellidos correo cedula telefono estado');
+      .populate('estudiante', 'nombres apellidos correo cedula telefono estado');
 
     if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
 
@@ -105,18 +121,27 @@ export const aulaVirtualService = {
   },
 
   /**
-   * Actualiza la parametrización de un aula virtual
+   * Actualiza la parametrización del aula virtual (modalidad, fechas, tutor o estudiante)
    */
   async actualizarAulaVirtual(aulaId, datos) {
     const aula = await AulaVirtual.findById(aulaId);
     if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
 
-    const { nombre, periodo, estado, docenteTutor } = datos;
+    const { nombre, periodo, estado, docenteTutor, modalidad } = datos;
     const fechaFin = datos.fechaFin || datos.fechaLimiteEntrega;
+    const estudianteId = datos.estudiante || datos.estudianteId;
 
     if (nombre) aula.nombre = nombre.trim();
     if (periodo) aula.periodo = periodo.trim();
     if (estado && Object.values(ESTADOS_AULA).includes(estado)) aula.estado = estado;
+
+    // Si el administrador cambia la modalidad, se recalculan automáticamente las horas
+    if (modalidad && Object.values(MODALIDADES).includes(modalidad)) {
+      aula.modalidad = modalidad;
+      aula.horasRequeridas = modalidad === MODALIDADES.LABORAL
+        ? HORAS_REGLAMENTARIAS.LABORAL
+        : HORAS_REGLAMENTARIAS.COMUNITARIO;
+    }
 
     if (fechaFin) {
       const fFin = new Date(fechaFin);
@@ -126,7 +151,7 @@ export const aulaVirtualService = {
       aula.fechaFin = fFin;
     }
 
-    if (docenteTutor && docenteTutor.toString() !== aula.docenteTutor.toString()) {
+    if (docenteTutor && docenteTutor.toString() !== aula.docenteTutor?.toString()) {
       const tutor = await Usuario.findById(docenteTutor);
       if (!tutor || tutor.rol !== ROLES.DOCENTE) {
         throw errorHttp('El docente tutor asignado no existe o no tiene el rol de docente', 400);
@@ -134,11 +159,29 @@ export const aulaVirtualService = {
       aula.docenteTutor = tutor._id;
     }
 
+    // Reasignación de estudiante validando regla de 1 aula activa por estudiante
+    if (estudianteId && estudianteId.toString() !== aula.estudiante?.toString()) {
+      const alumno = await Usuario.findById(estudianteId);
+      if (!alumno || alumno.rol !== ROLES.ESTUDIANTE) {
+        throw errorHttp('El estudiante asignado no existe o no tiene el rol de estudiante', 400);
+      }
+
+      const aulaActiva = await AulaVirtual.findOne({
+        estudiante: alumno._id,
+        estado: ESTADOS_AULA.ABIERTA,
+        _id: { $ne: aulaId }
+      });
+      if (aulaActiva) {
+        throw errorHttp('El estudiante ya se encuentra matriculado en otra aula virtual activa en el sistema', 409);
+      }
+      aula.estudiante = alumno._id;
+    }
+
     await aula.save();
 
     const aulaActualizada = await AulaVirtual.findById(aulaId)
       .populate('docenteTutor', 'nombres apellidos correo telefono')
-      .populate('estudiantes', 'nombres apellidos correo cedula');
+      .populate('estudiante', 'nombres apellidos correo cedula telefono estado');
 
     return {
       success: true,
@@ -148,56 +191,69 @@ export const aulaVirtualService = {
   },
 
   /**
-   * Matricula estudiantes garantizando no duplicidad mediante Set
+   * Matricula o asigna al estudiante único en el aula virtual
    */
-  async matricularEstudiantes(aulaId, estudiantesIds) {
+  async matricularEstudiante(aulaId, idEstudiante) {
     const aula = await AulaVirtual.findById(aulaId);
     if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
 
-    const idsRaw = Array.isArray(estudiantesIds) ? estudiantesIds : [estudiantesIds];
-    const ids = Array.from(new Set(idsRaw.map((id) => id.toString())));
-    if (ids.length === 0) throw errorHttp('Debe proporcionar al menos un ID de estudiante', 400);
+    if (!idEstudiante) throw errorHttp('Debe proporcionar el ID del estudiante a matricular', 400);
 
-    const validos = await Usuario.find({ _id: { $in: ids }, rol: ROLES.ESTUDIANTE });
-    if (validos.length !== ids.length) {
-      throw errorHttp('Uno o más IDs no corresponden a estudiantes válidos en el sistema', 400);
+    // Si ya tiene un estudiante diferente asignado, advertir que cada aula es 1 a 1
+    if (aula.estudiante && aula.estudiante.toString() !== idEstudiante.toString()) {
+      throw errorHttp('El aula virtual ya cuenta con un estudiante asignado (capacidad máxima: 1 estudiante por aula)', 409);
     }
 
-    // Incorporar sin duplicados con Set
-    const conjunto = new Set(aula.estudiantes.map((id) => id.toString()));
-    const totalInicial = conjunto.size;
-    ids.forEach((id) => conjunto.add(id));
+    const alumno = await Usuario.findById(idEstudiante);
+    if (!alumno || alumno.rol !== ROLES.ESTUDIANTE) {
+      throw errorHttp('El ID proporcionado no corresponde a un estudiante válido en el sistema', 400);
+    }
 
-    aula.estudiantes = Array.from(conjunto);
+    // Verificar que el estudiante no tenga otra aula abierta
+    const aulaActiva = await AulaVirtual.findOne({
+      estudiante: alumno._id,
+      estado: ESTADOS_AULA.ABIERTA,
+      _id: { $ne: aulaId }
+    });
+    if (aulaActiva) {
+      throw errorHttp('El estudiante ya se encuentra matriculado en otra aula virtual activa en el sistema', 409);
+    }
+
+    aula.estudiante = alumno._id;
     await aula.save();
+
+    const aulaPoblada = await AulaVirtual.findById(aulaId)
+      .populate('docenteTutor', 'nombres apellidos correo telefono')
+      .populate('estudiante', 'nombres apellidos correo cedula telefono estado');
 
     return {
       success: true,
-      message: `Se matricularon ${conjunto.size - totalInicial} nuevo(s) estudiante(s) en el aula virtual`,
-      totalEstudiantesMatriculados: aula.estudiantes.length
+      message: 'Estudiante matriculado exitosamente en el aula virtual',
+      aulaVirtual: toAulaVirtualDto(aulaPoblada)
     };
   },
 
   /**
-   * Desmatricula a un estudiante del aula virtual
+   * Desmatricula al estudiante del aula virtual dejando la plaza disponible
    */
-  async desmatricularEstudiante(aulaId, estudianteId) {
+  async desmatricularEstudiante(aulaId, idEstudiante) {
     const aula = await AulaVirtual.findById(aulaId);
     if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
 
-    const totalInicial = aula.estudiantes.length;
-    aula.estudiantes = aula.estudiantes.filter((id) => id.toString() !== estudianteId.toString());
-
-    if (aula.estudiantes.length === totalInicial) {
-      throw errorHttp('El estudiante no se encuentra matriculado en esta aula virtual', 404);
+    if (!aula.estudiante) {
+      throw errorHttp('El aula virtual no tiene ningún estudiante matriculado actualmente', 400);
     }
 
+    if (idEstudiante && aula.estudiante.toString() !== idEstudiante.toString()) {
+      throw errorHttp('El estudiante especificado no coincide con el alumno matriculado en esta aula', 400);
+    }
+
+    aula.estudiante = null;
     await aula.save();
 
     return {
       success: true,
-      message: 'Estudiante desmatriculado exitosamente del aula virtual',
-      totalEstudiantesMatriculados: aula.estudiantes.length
+      message: 'Estudiante desmatriculado exitosamente del aula virtual'
     };
   }
 };

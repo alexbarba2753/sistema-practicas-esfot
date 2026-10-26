@@ -1,6 +1,5 @@
 /**
- * DTOs y Mappers para Usuario (Data Transfer Objects)
- * Desacopla la entidad de persistencia (Mongoose) del contrato expuesto hacia el cliente
+ * DTOs y Mappers para Usuario 
  */
 
 export const toUsuarioDto = (usuario) => {

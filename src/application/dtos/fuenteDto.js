@@ -1,5 +1,5 @@
 /**
- * DTOs y Mappers para Fuentes Institucionales (RAG)
+ * DTOs y Mappers para Fuentes Institucionales 
  */
 
 export const toFuenteDto = (fuente) => {

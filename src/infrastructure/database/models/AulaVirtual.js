@@ -23,12 +23,12 @@ const aulaVirtualSchema = new mongoose.Schema(
       ref: 'Usuario',
       required: [true, 'El docente tutor asignado es obligatorio']
     },
-    estudiantes: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Usuario'
-      }
-    ],
+    // Relación 1 a 1: En cada aula virtual participa exactamente 1 estudiante
+    estudiante: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Usuario',
+      default: null
+    },
     horasRequeridas: {
       type: Number,
       default: function () {

@@ -2,13 +2,14 @@ import { toUsuarioDto } from './usuarioDto.js';
 
 /**
  * DTOs y Mappers para Aula Virtual (Data Transfer Objects)
+ * Relación: 1 Docente Tutor y 1 Estudiante por Aula Virtual
  */
 
 export const toAulaVirtualDto = (aula) => {
   if (!aula) return null;
   const aulaObj = aula.toObject ? aula.toObject() : aula;
 
-  // Formatear docente tutor si está poblado o es ID
+  // Formatear docente tutor si está poblado
   let tutor = null;
   if (aulaObj.docenteTutor) {
     if (aulaObj.docenteTutor._id) {
@@ -24,10 +25,14 @@ export const toAulaVirtualDto = (aula) => {
     }
   }
 
-  // Formatear estudiantes si están poblados
-  let estudiantes = [];
-  if (Array.isArray(aulaObj.estudiantes)) {
-    estudiantes = aulaObj.estudiantes.map((e) => (e._id ? toUsuarioDto(e) : e.toString()));
+  // Formatear estudiante asignado (1 a 1)
+  let alumno = null;
+  if (aulaObj.estudiante) {
+    if (aulaObj.estudiante._id) {
+      alumno = toUsuarioDto(aulaObj.estudiante);
+    } else {
+      alumno = aulaObj.estudiante.toString();
+    }
   }
 
   return {
@@ -37,8 +42,7 @@ export const toAulaVirtualDto = (aula) => {
     modalidad: aulaObj.modalidad,
     horasRequeridas: aulaObj.horasRequeridas,
     docenteTutor: tutor,
-    estudiantes,
-    totalEstudiantes: estudiantes.length,
+    estudiante: alumno,
     fechaInicio: aulaObj.fechaInicio,
     fechaFin: aulaObj.fechaFin,
     estado: aulaObj.estado,

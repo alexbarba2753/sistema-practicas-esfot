@@ -26,7 +26,10 @@ router.get('/aulas-virtuales', aulaVirtualController.listarAulas);
 router.get('/aulas-virtuales/:id', aulaVirtualController.obtenerAula);
 router.put('/aulas-virtuales/:id', aulaVirtualController.actualizarAula);
 router.post('/aulas-virtuales/:id/estudiantes', aulaVirtualController.matricularEstudiantes);
+router.post('/aulas-virtuales/:id/estudiante', aulaVirtualController.matricularEstudiantes);
 router.delete('/aulas-virtuales/:id/estudiantes/:estudianteId', aulaVirtualController.desmatricularEstudiante);
+router.delete('/aulas-virtuales/:id/estudiante/:estudianteId', aulaVirtualController.desmatricularEstudiante);
+router.delete('/aulas-virtuales/:id/estudiante', aulaVirtualController.desmatricularEstudiante);
 
 // 3. Ingesta y Gestión de Fuentes Institucionales para la IA (RAG)
 

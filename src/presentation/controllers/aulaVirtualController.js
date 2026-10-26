@@ -39,8 +39,8 @@ export const aulaVirtualController = {
 
   async matricularEstudiantes(req, res, next) {
     try {
-      const { estudiantes } = req.body;
-      const resultado = await aulaVirtualService.matricularEstudiantes(req.params.id, estudiantes);
+      const estudianteId = req.body.estudiante || req.body.estudianteId || (Array.isArray(req.body.estudiantes) ? req.body.estudiantes[0] : req.body.estudiantes);
+      const resultado = await aulaVirtualService.matricularEstudiante(req.params.id, estudianteId);
       res.status(200).json(resultado);
     } catch (error) {
       next(error);
@@ -49,10 +49,8 @@ export const aulaVirtualController = {
 
   async desmatricularEstudiante(req, res, next) {
     try {
-      const resultado = await aulaVirtualService.desmatricularEstudiante(
-        req.params.id,
-        req.params.estudianteId
-      );
+      const estudianteId = req.params.estudianteId || req.body?.estudianteId;
+      const resultado = await aulaVirtualService.desmatricularEstudiante(req.params.id, estudianteId);
       res.status(200).json(resultado);
     } catch (error) {
       next(error);

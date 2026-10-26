@@ -1,7 +1,7 @@
-/**
- * Middleware para autorización basada en roles (RBAC).
- * Verifica que el usuario autenticado (inyectado por authMiddleware) posea uno de los roles autorizados.
- */
+/*
+- Middleware para autorización basada en roles.
+- Verifica que el usuario autenticado posea uno de los roles autorizados.
+*/
 export const requireRole = (...rolesPermitidos) => {
   return (req, res, next) => {
     if (!req.usuario) {

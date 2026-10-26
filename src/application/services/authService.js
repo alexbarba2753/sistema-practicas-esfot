@@ -2,70 +2,38 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { Usuario } from '../../infrastructure/database/models/index.js';
 import { ROLES } from '../../domain/constants/practicasConstants.js';
-import { validarCedula } from '../../domain/utils/validarCedula.js';
+import { validarDatosUsuario } from '../../domain/utils/validarUsuario.js';
+import { errorHttp } from '../../domain/utils/errorHttp.js';
 import { emailAdapter } from '../../infrastructure/adapters/emailAdapter.js';
 import { ENV } from '../../infrastructure/config/env.js';
 
 export const authService = {
   /**
-   * Registro de un nuevo usuario (Estudiante, Docente, Administrador) con validaciones y token unificado
+   * Registro de un nuevo usuario con verificación por correo (Estudiante, Docente, Administrador)
    */
   async registrarUsuario(datos) {
+    validarDatosUsuario(datos);
+
     const { cedula, nombres, apellidos, correo, password, telefono, rol } = datos;
-
-    // 1. Validar campos obligatorios
-    if (!cedula || !nombres || !apellidos || !correo || !password) {
-      const error = new Error('Todos los campos obligatorios deben ser completados');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    // 2. Validar cédula ecuatoriana (Dominio)
-    if (!validarCedula(cedula)) {
-      const error = new Error('El número de cédula ingresado no es válido para Ecuador');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    // 3. Validar formato de correo electrónico
     const correoLimpio = correo.toLowerCase().trim();
-    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!regexEmail.test(correoLimpio)) {
-      const error = new Error('El formato del correo electrónico no es válido');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    // 4. Validar longitud mínima de contraseña
-    if (password.length < 6) {
-      const error = new Error('La contraseña debe tener un mínimo de 6 caracteres');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    // Validar rol si es provisto (por defecto ESTUDIANTE)
     const rolValido = rol && Object.values(ROLES).includes(rol) ? rol : ROLES.ESTUDIANTE;
 
-    // 5. Comprobar duplicidad de cédula o correo
+    // Verificar no duplicidad
     const usuarioExistente = await Usuario.findOne({
       $or: [{ cedula: cedula.trim() }, { correo: correoLimpio }]
     });
 
     if (usuarioExistente) {
-      const error = new Error(
+      throw errorHttp(
         usuarioExistente.correo === correoLimpio
           ? 'El correo electrónico ya se encuentra registrado'
-          : 'El número de cédula ya se encuentra registrado'
+          : 'El número de cédula ya se encuentra registrado',
+        409
       );
-      error.statusCode = 409;
-      throw error;
     }
 
-    // 6. Generar token temporal (24 horas para activación)
+    // Token temporal (24 horas) para activación
     const token = crypto.randomBytes(24).toString('hex');
-    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    // 7. Crear el usuario en estado pendiente
     const nuevoUsuario = new Usuario({
       cedula: cedula.trim(),
       nombres: nombres.trim(),
@@ -76,12 +44,10 @@ export const authService = {
       rol: rolValido,
       estado: 'pendiente',
       token,
-      tokenExpires
+      tokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000)
     });
 
     await nuevoUsuario.save();
-
-    // 8. Enviar correo de verificación
     await emailAdapter.enviarTokenVerificacion(correoLimpio, nombres.trim(), token);
 
     return {
@@ -98,24 +64,15 @@ export const authService = {
    * Valida y activa la cuenta del usuario mediante el token recibido
    */
   async verificarCuenta(token) {
-    if (!token) {
-      const error = new Error('El token de verificación es obligatorio');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!token) throw errorHttp('El token de verificación es obligatorio', 400);
 
     const usuario = await Usuario.findOne({
       token: token.trim(),
       tokenExpires: { $gt: new Date() }
     });
 
-    if (!usuario) {
-      const error = new Error('El token de verificación es inválido o ha expirado');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!usuario) throw errorHttp('El token de verificación es inválido o ha expirado', 400);
 
-    // Activar cuenta y limpiar token
     usuario.estado = 'activo';
     usuario.token = null;
     usuario.tokenExpires = null;
@@ -131,53 +88,27 @@ export const authService = {
    * Inicio de sesión con credenciales y emisión de token JWT
    */
   async login(correo, password) {
-    if (!correo || !password) {
-      const error = new Error('El correo electrónico y la contraseña son obligatorios');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!correo || !password) throw errorHttp('El correo electrónico y la contraseña son obligatorios', 400);
 
     const correoLimpio = correo.toLowerCase().trim();
-
-    // Buscar usuario incluyendo el password
     const usuario = await Usuario.findOne({ correo: correoLimpio }).select('+password');
-    if (!usuario) {
-      const error = new Error('Credenciales incorrectas');
-      error.statusCode = 401;
-      throw error;
-    }
+    if (!usuario) throw errorHttp('Credenciales incorrectas', 401);
 
-    // Verificar si la cuenta fue activada
     if (usuario.estado === 'pendiente') {
-      const error = new Error('Su cuenta no ha sido activada. Por favor revise el token de verificación enviado a su correo.');
-      error.statusCode = 403;
-      throw error;
+      throw errorHttp('Su cuenta no ha sido activada. Por favor revise el token de verificación enviado a su correo.', 403);
     }
-
     if (usuario.estado === 'inactivo') {
-      const error = new Error('Su cuenta se encuentra inactiva. Por favor comuníquese con el administrador.');
-      error.statusCode = 403;
-      throw error;
+      throw errorHttp('Su cuenta se encuentra inactiva. Por favor comuníquese con el administrador.', 403);
     }
 
-    // Comprobar contraseña con bcryptjs
     const passwordValida = await usuario.comparePassword(password);
-    if (!passwordValida) {
-      const error = new Error('Credenciales incorrectas');
-      error.statusCode = 401;
-      throw error;
-    }
+    if (!passwordValida) throw errorHttp('Credenciales incorrectas', 401);
 
-    // Generar JWT
-    const payload = {
-      id: usuario._id,
-      correo: usuario.correo,
-      rol: usuario.rol
-    };
-
-    const token = jwt.sign(payload, ENV.JWT_SECRET, {
-      expiresIn: ENV.JWT_EXPIRES_IN
-    });
+    const token = jwt.sign(
+      { id: usuario._id, correo: usuario.correo, rol: usuario.rol },
+      ENV.JWT_SECRET,
+      { expiresIn: ENV.JWT_EXPIRES_IN }
+    );
 
     return {
       success: true,
@@ -196,15 +127,11 @@ export const authService = {
   },
 
   /**
-   * Obtiene la información del perfil del usuario autenticado
+   * Consulta los datos del perfil del usuario autenticado
    */
   async obtenerPerfil(usuarioId) {
     const usuario = await Usuario.findById(usuarioId);
-    if (!usuario) {
-      const error = new Error('Usuario no encontrado');
-      error.statusCode = 404;
-      throw error;
-    }
+    if (!usuario) throw errorHttp('Usuario no encontrado', 404);
 
     return {
       success: true,
@@ -227,7 +154,6 @@ export const authService = {
    */
   async actualizarPerfil(usuarioId, datos) {
     const { nombres, apellidos, telefono } = datos;
-
     const camposActualizar = {};
     if (nombres) camposActualizar.nombres = nombres.trim();
     if (apellidos) camposActualizar.apellidos = apellidos.trim();
@@ -238,11 +164,7 @@ export const authService = {
       runValidators: true
     });
 
-    if (!usuario) {
-      const error = new Error('Usuario no encontrado');
-      error.statusCode = 404;
-      throw error;
-    }
+    if (!usuario) throw errorHttp('Usuario no encontrado', 404);
 
     return {
       success: true,
@@ -264,33 +186,18 @@ export const authService = {
    */
   async cambiarPassword(usuarioId, passwordActual, passwordNueva) {
     if (!passwordActual || !passwordNueva) {
-      const error = new Error('Debe proporcionar la contraseña actual y la nueva contraseña');
-      error.statusCode = 400;
-      throw error;
+      throw errorHttp('Debe proporcionar la contraseña actual y la nueva contraseña', 400);
     }
-
     if (passwordNueva.length < 6) {
-      const error = new Error('La nueva contraseña debe tener al menos 6 caracteres');
-      error.statusCode = 400;
-      throw error;
+      throw errorHttp('La nueva contraseña debe tener al menos 6 caracteres', 400);
     }
 
     const usuario = await Usuario.findById(usuarioId).select('+password');
-    if (!usuario) {
-      const error = new Error('Usuario no encontrado');
-      error.statusCode = 404;
-      throw error;
-    }
+    if (!usuario) throw errorHttp('Usuario no encontrado', 404);
 
-    // Verificar contraseña actual con bcryptjs
     const coincide = await usuario.comparePassword(passwordActual);
-    if (!coincide) {
-      const error = new Error('La contraseña actual ingresada es incorrecta');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!coincide) throw errorHttp('La contraseña actual ingresada es incorrecta', 400);
 
-    // Actualizar con la nueva clave 
     usuario.password = passwordNueva;
     await usuario.save();
 
@@ -301,19 +208,12 @@ export const authService = {
   },
 
   /**
-   * Genera un token temporal unificado y envía el correo para restablecer contraseña
+   * Genera un token temporal y envía el correo para restablecer contraseña
    */
   async solicitarRecuperacionPassword(correo) {
-    if (!correo) {
-      const error = new Error('El correo electrónico es obligatorio');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!correo) throw errorHttp('El correo electrónico es obligatorio', 400);
 
-    const correoLimpio = correo.toLowerCase().trim();
-    const usuario = await Usuario.findOne({ correo: correoLimpio });
-
-    // Por seguridad, si el usuario no existe no revelamos el detalle pero informamos mensaje estándar
+    const usuario = await Usuario.findOne({ correo: correo.toLowerCase().trim() });
     if (!usuario) {
       return {
         success: true,
@@ -321,13 +221,11 @@ export const authService = {
       };
     }
 
-    // Token (1 hora de validez)
     const resetToken = crypto.randomBytes(24).toString('hex');
     usuario.token = resetToken;
     usuario.tokenExpires = new Date(Date.now() + 60 * 60 * 1000);
     await usuario.save();
 
-    // Enviar correo con SendGrid
     await emailAdapter.enviarTokenRecuperacion(usuario.correo, usuario.nombres, resetToken);
 
     return {
@@ -338,34 +236,19 @@ export const authService = {
   },
 
   /**
-   * Restablece la contraseña utilizando el token temporal unificado
+   * Restablece la contraseña utilizando el token temporal recibido
    */
   async restablecerPassword(token, passwordNueva) {
-    if (!token || !passwordNueva) {
-      const error = new Error('El token y la nueva contraseña son obligatorios');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!token || !passwordNueva) throw errorHttp('El token y la nueva contraseña son obligatorios', 400);
+    if (passwordNueva.length < 6) throw errorHttp('La nueva contraseña debe tener al menos 6 caracteres', 400);
 
-    if (passwordNueva.length < 6) {
-      const error = new Error('La nueva contraseña debe tener al menos 6 caracteres');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    // Buscar por el campo token
     const usuario = await Usuario.findOne({
       token: token.trim(),
       tokenExpires: { $gt: new Date() }
     });
 
-    if (!usuario) {
-      const error = new Error('El token de recuperación es inválido o ha caducado');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!usuario) throw errorHttp('El token de recuperación es inválido o ha caducado', 400);
 
-    // Actualizar contraseña y limpiar token unificado
     usuario.password = passwordNueva;
     usuario.token = null;
     usuario.tokenExpires = null;

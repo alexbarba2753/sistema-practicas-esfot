@@ -1,27 +1,25 @@
 import { FuenteInstitucional } from '../../infrastructure/database/models/index.js';
 import { dividirEnFragmentos } from '../../domain/utils/textChunker.js';
+import { errorHttp } from '../../domain/utils/errorHttp.js';
+
+const CATEGORIAS_VALIDAS = ['reglamento', 'instructivo', 'formato', 'resolucion', 'general'];
 
 export const fuenteService = {
   /**
-   * Procesa, fragmenta e indexa un documento normativo institucional para el asistente inteligente
+   * Carga, fragmenta algorítmicamente e indexa un documento normativo para la IA
    */
   async ingestarFuente(datos, usuarioId) {
     const { titulo, categoria, descripcion, contenido, enlaceUrl, version } = datos;
 
     if (!titulo || !contenido) {
-      const error = new Error('El título y el contenido textual del documento son obligatorios');
-      error.statusCode = 400;
-      throw error;
+      throw errorHttp('El título y el contenido textual del documento son obligatorios', 400);
     }
 
-    const categoriasValidas = ['reglamento', 'instructivo', 'formato', 'resolucion', 'general'];
-    if (categoria && !categoriasValidas.includes(categoria)) {
-      const error = new Error(`Categoría inválida. Permitidas: ${categoriasValidas.join(', ')}`);
-      error.statusCode = 400;
-      throw error;
+    if (categoria && !CATEGORIAS_VALIDAS.includes(categoria)) {
+      throw errorHttp(`Categoría inválida. Permitidas: ${CATEGORIAS_VALIDAS.join(', ')}`, 400);
     }
 
-    // Partición algorítmica en fragmentos secuenciales ordenados
+    // Fragmentación secuencial de texto
     const fragmentos = dividirEnFragmentos(contenido);
 
     const nuevaFuente = new FuenteInstitucional({
@@ -56,20 +54,13 @@ export const fuenteService = {
   },
 
   /**
-   * Consulta el listado de documentos normativos con filtros por categoría y estado de vigencia
+   * Lista fuentes normativas con filtros por categoría o vigencia
    */
   async listarFuentes(filtros = {}) {
     const query = {};
-
-    if (filtros.categoria) {
-      query.categoria = filtros.categoria;
-    }
-
-    if (filtros.activo !== undefined) {
-      query.activo = filtros.activo === 'true' || filtros.activo === true;
-    }
-
-    if (filtros.busqueda && filtros.busqueda.trim()) {
+    if (filtros.categoria) query.categoria = filtros.categoria;
+    if (filtros.activo !== undefined) query.activo = filtros.activo === 'true' || filtros.activo === true;
+    if (filtros.busqueda?.trim()) {
       const regex = new RegExp(filtros.busqueda.trim(), 'i');
       query.$or = [{ titulo: regex }, { descripcion: regex }];
     }
@@ -87,17 +78,13 @@ export const fuenteService = {
   },
 
   /**
-   * Obtiene el documento completo junto a todos sus fragmentos ordenados indexados
+   * Obtiene una fuente y todos sus fragmentos indexados
    */
   async obtenerFuentePorId(fuenteId) {
     const fuente = await FuenteInstitucional.findById(fuenteId)
       .populate('subidoPor', 'nombres apellidos correo');
 
-    if (!fuente) {
-      const error = new Error('Fuente institucional no encontrada');
-      error.statusCode = 404;
-      throw error;
-    }
+    if (!fuente) throw errorHttp('Fuente institucional no encontrada', 404);
 
     return {
       success: true,
@@ -106,15 +93,11 @@ export const fuenteService = {
   },
 
   /**
-   * Actualiza los datos de la fuente y re-indexa los fragmentos si el contenido textual fue modificado
+   * Actualiza metadatos y re-indexa fragmentos si se modificó el contenido
    */
   async actualizarFuente(fuenteId, datos) {
     const fuente = await FuenteInstitucional.findById(fuenteId);
-    if (!fuente) {
-      const error = new Error('Fuente institucional no encontrada');
-      error.statusCode = 404;
-      throw error;
-    }
+    if (!fuente) throw errorHttp('Fuente institucional no encontrada', 404);
 
     const { titulo, categoria, descripcion, enlaceUrl, version, contenido, activo } = datos;
 
@@ -123,13 +106,8 @@ export const fuenteService = {
     if (enlaceUrl !== undefined) fuente.enlaceUrl = enlaceUrl.trim();
     if (version) fuente.version = version.trim();
     if (activo !== undefined) fuente.activo = Boolean(activo);
+    if (categoria && CATEGORIAS_VALIDAS.includes(categoria)) fuente.categoria = categoria;
 
-    const categoriasValidas = ['reglamento', 'instructivo', 'formato', 'resolucion', 'general'];
-    if (categoria && categoriasValidas.includes(categoria)) {
-      fuente.categoria = categoria;
-    }
-
-    // Si el contenido textual cambió, recalcular fragmentos secuenciales
     let fragmentosRecalculados = false;
     if (contenido && contenido.trim() !== fuente.contenido) {
       fuente.contenido = contenido.trim();
@@ -157,15 +135,11 @@ export const fuenteService = {
   },
 
   /**
-   * Modifica la vigencia del documento (activar/desactivar para el asistente IA)
+   * Modifica la vigencia del documento normativo
    */
   async cambiarEstadoFuente(fuenteId, activo) {
     const fuente = await FuenteInstitucional.findById(fuenteId);
-    if (!fuente) {
-      const error = new Error('Fuente institucional no encontrada');
-      error.statusCode = 404;
-      throw error;
-    }
+    if (!fuente) throw errorHttp('Fuente institucional no encontrada', 404);
 
     fuente.activo = Boolean(activo);
     await fuente.save();
@@ -182,15 +156,11 @@ export const fuenteService = {
   },
 
   /**
-   * Elimina un documento normativo institucional
+   * Elimina permanentemente una fuente y sus fragmentos
    */
   async eliminarFuente(fuenteId) {
     const fuente = await FuenteInstitucional.findByIdAndDelete(fuenteId);
-    if (!fuente) {
-      const error = new Error('Fuente institucional no encontrada');
-      error.statusCode = 404;
-      throw error;
-    }
+    if (!fuente) throw errorHttp('Fuente institucional no encontrada', 404);
 
     return {
       success: true,

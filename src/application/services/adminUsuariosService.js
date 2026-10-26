@@ -62,16 +62,26 @@ export const adminUsuariosService = {
   async listarUsuarios(filtros = {}) {
     const query = {};
 
-    if (filtros.rol && Object.values(ROLES).includes(filtros.rol)) {
-      query.rol = filtros.rol;
+    // Normalizar rol (eliminar espacios, minúsculas y tolerar plurales)
+    const rawRol = (filtros.rol || filtros['rol '] || '').toString().trim().toLowerCase();
+    let rolNormalizado = rawRol;
+    if (rolNormalizado === 'estudiantes') rolNormalizado = ROLES.ESTUDIANTE;
+    if (rolNormalizado === 'docentes') rolNormalizado = ROLES.DOCENTE;
+    if (rolNormalizado === 'administradores') rolNormalizado = ROLES.ADMINISTRADOR;
+
+    if (rolNormalizado && Object.values(ROLES).includes(rolNormalizado)) {
+      query.rol = rolNormalizado;
     }
 
-    if (filtros.estado && ['activo', 'inactivo', 'pendiente'].includes(filtros.estado)) {
-      query.estado = filtros.estado;
+    // Normalizar estado (eliminar espacios y minúsculas)
+    const rawEstado = (filtros.estado || filtros['estado '] || '').toString().trim().toLowerCase();
+    if (rawEstado && ['activo', 'inactivo', 'pendiente'].includes(rawEstado)) {
+      query.estado = rawEstado;
     }
 
-    if (filtros.busqueda?.trim()) {
-      const regex = new RegExp(filtros.busqueda.trim(), 'i');
+    const textoBusqueda = (filtros.busqueda || filtros['busqueda '] || '').toString().trim();
+    if (textoBusqueda) {
+      const regex = new RegExp(textoBusqueda, 'i');
       query.$or = [{ nombres: regex }, { apellidos: regex }, { cedula: regex }, { correo: regex }];
     }
 

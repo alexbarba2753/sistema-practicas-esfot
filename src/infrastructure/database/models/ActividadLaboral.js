@@ -31,7 +31,7 @@ const actividadLaboralSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'El total de horas cumplidas es obligatorio'],
       min: [0.5, 'Mínimo media hora'],
-      max: [10, 'Máximo 10 horas por jornada diaria']
+      max: [8, 'Máximo 8 horas por jornada diaria según el régimen académico']
     },
     descripcion: {
       type: String,

@@ -15,27 +15,18 @@ const actividadComunitariaSchema = new mongoose.Schema(
     },
     fecha: {
       type: Date,
-      required: [true, 'La fecha de la actividad comunitaria es obligatoria']
-    },
-    horaEntrada: {
-      type: String,
-      required: [true, 'La hora de entrada es obligatoria (formato HH:mm)'],
-      trim: true
-    },
-    horaSalida: {
-      type: String,
-      required: [true, 'La hora de salida es obligatoria (formato HH:mm)'],
-      trim: true
+      required: [true, 'La fecha de la actividad comunitaria es obligatoria'],
+      default: Date.now
     },
     horas: {
       type: Number,
-      required: [true, 'El total de horas cumplidas es obligatorio'],
-      min: [0.5, 'Mínimo media hora'],
-      max: [10, 'Máximo 10 horas por jornada diaria']
+      required: [true, 'El total de horas cumplidas o acreditadas es obligatorio'],
+      min: [1, 'Mínimo 1 hora'],
+      max: [96, 'No puede superar el tope reglamentario de 96 horas']
     },
     comunidadOInstitucion: {
       type: String,
-      required: [true, 'El nombre de la comunidad o institución beneficiaria es obligatorio'],
+      required: [true, 'El nombre de la comunidad, institución u organismo beneficiario es obligatorio'],
       trim: true
     },
     beneficiariosAproximados: {
@@ -45,8 +36,13 @@ const actividadComunitariaSchema = new mongoose.Schema(
     },
     descripcion: {
       type: String,
-      required: [true, 'La descripción de las actividades de servicio comunitario es obligatoria'],
+      required: [true, 'La descripción de las actividades o proyecto de servicio comunitario es obligatoria'],
       trim: true
+    },
+    archivoEvidenciaUrl: {
+      type: String,
+      trim: true,
+      default: ''
     },
     estadoAprobacion: {
       type: String,

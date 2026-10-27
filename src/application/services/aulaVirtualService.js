@@ -34,13 +34,14 @@ export const aulaVirtualService = {
       throw errorHttp('El estudiante asignado no existe o no tiene el rol de estudiante', 400);
     }
 
-    // 4. Regla de negocio: Un estudiante solo puede estar en 1 sola aula virtual activa
-    const aulaActiva = await AulaVirtual.findOne({
+    // 4. Regla de negocio: Un estudiante puede tener 1 aula activa por modalidad (laboral y comunitaria independientes)
+    const aulaActivaMismaModalidad = await AulaVirtual.findOne({
       estudiante: alumno._id,
+      modalidad,
       estado: ESTADOS_AULA.ABIERTA
     });
-    if (aulaActiva) {
-      throw errorHttp('El estudiante ya se encuentra matriculado en un aula virtual activa en el sistema', 409);
+    if (aulaActivaMismaModalidad) {
+      throw errorHttp(`El estudiante ya cuenta con un aula virtual activa para la modalidad '${modalidad}'`, 409);
     }
 
     // 5. Validar coherencia de fechas
@@ -159,22 +160,28 @@ export const aulaVirtualService = {
       aula.docenteTutor = tutor._id;
     }
 
-    // Reasignación de estudiante validando regla de 1 aula activa por estudiante
-    if (estudianteId && estudianteId.toString() !== aula.estudiante?.toString()) {
-      const alumno = await Usuario.findById(estudianteId);
+    // Reasignación de estudiante o cambio de modalidad validando regla de 1 aula activa por modalidad
+    const modalidadComparar = modalidad || aula.modalidad;
+    const nuevoEstudianteId = estudianteId || aula.estudiante;
+
+    if (nuevoEstudianteId && (estudianteId || modalidad)) {
+      const alumno = await Usuario.findById(nuevoEstudianteId);
       if (!alumno || alumno.rol !== ROLES.ESTUDIANTE) {
         throw errorHttp('El estudiante asignado no existe o no tiene el rol de estudiante', 400);
       }
 
       const aulaActiva = await AulaVirtual.findOne({
         estudiante: alumno._id,
+        modalidad: modalidadComparar,
         estado: ESTADOS_AULA.ABIERTA,
         _id: { $ne: aulaId }
       });
       if (aulaActiva) {
-        throw errorHttp('El estudiante ya se encuentra matriculado en otra aula virtual activa en el sistema', 409);
+        throw errorHttp(`El estudiante ya cuenta con otra aula virtual activa para la modalidad '${modalidadComparar}'`, 409);
       }
-      aula.estudiante = alumno._id;
+      if (estudianteId) {
+        aula.estudiante = alumno._id;
+      }
     }
 
     await aula.save();
@@ -209,14 +216,15 @@ export const aulaVirtualService = {
       throw errorHttp('El ID proporcionado no corresponde a un estudiante válido en el sistema', 400);
     }
 
-    // Verificar que el estudiante no tenga otra aula abierta
+    // Verificar que el estudiante no tenga otra aula abierta en esta misma modalidad
     const aulaActiva = await AulaVirtual.findOne({
       estudiante: alumno._id,
+      modalidad: aula.modalidad,
       estado: ESTADOS_AULA.ABIERTA,
       _id: { $ne: aulaId }
     });
     if (aulaActiva) {
-      throw errorHttp('El estudiante ya se encuentra matriculado en otra aula virtual activa en el sistema', 409);
+      throw errorHttp(`El estudiante ya cuenta con un aula virtual activa para la modalidad '${aula.modalidad}'`, 409);
     }
 
     aula.estudiante = alumno._id;

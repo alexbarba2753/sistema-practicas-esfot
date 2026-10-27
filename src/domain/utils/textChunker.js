@@ -1,8 +1,5 @@
 /**
  * Fragmenta un texto normativo extenso en bloques secuenciales para el asistente de IA (RAG)
- * Explicación para sustentación:
- * "Divide el texto en párrafos y los acumula secuencialmente hasta un máximo de palabras.
- * Cuando se supera el límite, almacena el fragmento ordenado y abre el siguiente."
  */
 export const dividirEnFragmentos = (texto, maxPalabras = 150) => {
   if (!texto || typeof texto !== 'string' || !texto.trim()) {

@@ -34,6 +34,7 @@ router.delete('/aulas-virtuales/:id/estudiante', aulaVirtualController.desmatric
 
 // 3. Ingesta y Gestión de Fuentes Institucionales para la IA (RAG)
 
+router.post('/fuentes/archivo', fuenteController.ingestarDesdeArchivo);
 router.post('/fuentes', fuenteController.ingestarFuente);
 router.get('/fuentes', fuenteController.listarFuentes);
 router.get('/fuentes/:id', fuenteController.obtenerFuente);

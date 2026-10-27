@@ -1,89 +1,60 @@
+import { errorHttp } from '../../domain/utils/errorHttp.js';
+
 /**
- * Middleware nativo para recepción y carga de archivos Markdown (.md o .txt)
- * sin dependencias externas (sin multer), usando streams nativos de Node.js.
- * 
- * Soporta:
- * 1. Postman Body -> binary (botón 'Select file') con metadatos por Query Params
- * 2. Postman Body -> form-data (campo 'archivo' de tipo File)
- * 3. Postman Body -> JSON tradicional
+ * Middleware para procesar la subida del archivo normativo:
+ * - Parámetros de configuración por Query Params (req.query: categoria, version, etc.)
+ * - Archivo Markdown adjunto por Form-Data (req.body.contenido)
  */
 export const procesarArchivoNormativo = async (req, res, next) => {
   try {
     const contentType = req.headers['content-type'] || '';
 
-    // Caso 1: JSON convencional
+    // Si viene como JSON convencional (por compatibilidad)
     if (contentType.includes('application/json')) {
       req.body = { ...req.query, ...req.body };
       return next();
     }
 
-    // Caso 2: multipart/form-data (Postman: form-data con archivo adjunto)
-    if (contentType.includes('multipart/form-data')) {
-      const boundaryMatch = contentType.match(/boundary=([^;]+)/);
-      if (!boundaryMatch) {
-        req.body = { ...req.query, ...req.body };
-        return next();
-      }
-
-      const boundary = boundaryMatch[1].trim().replace(/^["']|["']$/g, '');
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      const buffer = Buffer.concat(chunks);
-      const parts = buffer.toString('utf-8').split('--' + boundary);
-
-      req.body = { ...req.query };
-
-      for (const part of parts) {
-        if (!part || part.trim() === '' || part.trim() === '--') continue;
-        const headerEnd = part.indexOf('\r\n\r\n');
-        if (headerEnd === -1) continue;
-
-        const headers = part.slice(0, headerEnd);
-        const bodyContent = part.slice(headerEnd + 4).replace(/\r\n$/, '');
-
-        const nameMatch = headers.match(/name="([^"]+)"/);
-        const filenameMatch = headers.match(/filename="([^"]+)"/);
-
-        if (filenameMatch) {
-          req.file = {
-            filename: filenameMatch[1],
-            content: bodyContent
-          };
-          req.body.contenido = bodyContent;
-          req.body.nombreArchivo = filenameMatch[1];
-        } else if (nameMatch) {
-          req.body[nameMatch[1]] = bodyContent.trim();
-        }
-      }
-      return next();
+    if (!contentType.includes('multipart/form-data')) {
+      throw errorHttp('Debe adjuntar el archivo normativo usando form-data en el Body', 400);
     }
 
-    // Caso 3: application/octet-stream o binario crudo (Postman: binary con archivo adjunto)
-    if (
-      contentType.includes('application/octet-stream') ||
-      contentType.includes('text/markdown') ||
-      contentType.includes('text/plain') ||
-      !contentType
-    ) {
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      const fileContent = Buffer.concat(chunks).toString('utf-8');
-      req.body = { ...req.query, ...req.body };
-      if (fileContent.trim()) {
-        req.body.contenido = fileContent.trim();
-        req.file = {
-          filename: req.query.nombreArchivo || 'documento.md',
-          content: fileContent.trim()
-        };
-      }
-      return next();
+    const boundaryMatch = contentType.match(/boundary=([^;]+)/);
+    if (!boundaryMatch) {
+      throw errorHttp('Formato de carga multipart inválido', 400);
     }
 
-    req.body = { ...req.query, ...req.body };
+    const boundary = boundaryMatch[1].trim().replace(/^["']|["']$/g, '');
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+
+    const buffer = Buffer.concat(chunks);
+    const parts = buffer.toString('utf-8').split('--' + boundary);
+
+    // Los metadatos vienen por query params
+    req.body = { ...req.query };
+
+    for (const part of parts) {
+      if (!part || part.trim() === '' || part.trim() === '--') continue;
+      const headerEnd = part.indexOf('\r\n\r\n');
+      if (headerEnd === -1) continue;
+
+      const headers = part.slice(0, headerEnd);
+      const content = part.slice(headerEnd + 4).replace(/\r\n$/, '');
+      const filenameMatch = headers.match(/filename="([^"]+)"/);
+
+      if (filenameMatch) {
+        req.body.contenido = content.trim();
+        req.body.nombreArchivo = filenameMatch[1];
+      }
+    }
+
+    if (!req.body.contenido) {
+      throw errorHttp('Debe adjuntar un archivo Markdown (.md o .txt) con contenido válido', 400);
+    }
+
     next();
   } catch (error) {
     next(error);

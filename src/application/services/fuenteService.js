@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { FuenteInstitucional } from '../../infrastructure/database/models/index.js';
 import { dividirEnFragmentos } from '../../domain/utils/textChunker.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
@@ -7,78 +5,26 @@ import { toFuenteDto, toFuenteDetalleDto, toFuenteListDto } from '../dtos/index.
 
 const CATEGORIAS_VALIDAS = ['reglamento', 'instructivo', 'formato', 'resolucion', 'general'];
 
-/**
- * Busca y lee un archivo Markdown (.md o .txt) en ubicaciones estándar del proyecto
- */
-const resolverYLeerArchivo = async (nombreORuta) => {
-  if (!nombreORuta || typeof nombreORuta !== 'string') {
-    throw errorHttp('Debe especificar el nombre o ruta del archivo a procesar', 400);
-  }
-
-  const posiblesRutas = [
-    path.resolve(nombreORuta),
-    path.resolve(process.cwd(), nombreORuta),
-    path.resolve(process.cwd(), '../Documentación', nombreORuta),
-    path.resolve(process.cwd(), 'documentos', nombreORuta),
-    path.resolve('C:\\Users\\alexm\\OneDrive\\Desktop\\Tesis\\Documentación', nombreORuta)
-  ];
-
-  let rutaEncontrada = null;
-  for (const r of posiblesRutas) {
-    if (fs.existsSync(r) && fs.statSync(r).isFile()) {
-      rutaEncontrada = r;
-      break;
-    }
-  }
-
-  if (!rutaEncontrada) {
-    throw errorHttp(`El archivo '${nombreORuta}' no fue encontrado en las carpetas del proyecto`, 404);
-  }
-
-  const contenido = await fs.promises.readFile(rutaEncontrada, 'utf-8');
-  if (!contenido || !contenido.trim()) {
-    throw errorHttp(`El archivo '${nombreORuta}' se encuentra vacío`, 400);
-  }
-
-  return {
-    contenido: contenido.trim(),
-    nombreArchivo: path.basename(rutaEncontrada),
-    rutaAbsoluta: rutaEncontrada
-  };
-};
-
 export const fuenteService = {
   /**
    * Carga, fragmenta algorítmicamente e indexa un documento normativo para la IA
-   * Acepta contenido directo en texto o el nombre/ruta de un archivo .md
+   * Recibe el archivo por form-data y los metadatos por query params
    */
   async ingestarFuente(datos, usuarioId) {
-    let { titulo, categoria, descripcion, contenido, enlaceUrl, version } = datos;
-    const archivoReferencia = datos.nombreArchivo || datos.archivo || datos.rutaArchivo;
+    let { titulo, categoria, descripcion, contenido, enlaceUrl, version, nombreArchivo } = datos;
 
-    // Si se envía archivo .md o .txt por ruta/disco, resolverlo y leerlo
-    let archivoInfo = null;
-    if (!contenido && archivoReferencia) {
-      archivoInfo = await resolverYLeerArchivo(archivoReferencia);
-      contenido = archivoInfo.contenido;
+    if (!contenido) {
+      throw errorHttp('No se ha recibido el contenido del archivo normativo', 400);
     }
 
-    // Deducir título si no se especificó (usar primer encabezado # del Markdown)
-    if (contenido && !titulo) {
+    // Si no se proporcionó título, extraerlo del primer encabezado # del Markdown
+    if (!titulo) {
       const lineaH1 = contenido.split('\n').find((l) => l.startsWith('# '));
-      titulo = lineaH1
-        ? lineaH1.replace(/^#\s+/, '').trim()
-        : (archivoInfo?.nombreArchivo || datos.nombreArchivo || 'Documento Normativo Institucional');
+      titulo = lineaH1 ? lineaH1.replace(/^#\s+/, '').trim() : (nombreArchivo || 'Documento Normativo Institucional');
     }
 
     if (!descripcion) {
-      descripcion = archivoInfo
-        ? `Documento normativo institucional cargado desde archivo ${archivoInfo.nombreArchivo}`
-        : `Documento normativo institucional (${categoria || 'reglamento'})`;
-    }
-
-    if (!titulo || !contenido) {
-      throw errorHttp('El título y el contenido textual (o el nombre de un archivo .md válido) son obligatorios', 400);
+      descripcion = `Documento normativo institucional (${categoria || 'reglamento'})`;
     }
 
     if (categoria && !CATEGORIAS_VALIDAS.includes(categoria)) {
@@ -91,7 +37,7 @@ export const fuenteService = {
     const nuevaFuente = new FuenteInstitucional({
       titulo: titulo.trim(),
       categoria: categoria || 'reglamento',
-      descripcion: descripcion ? descripcion.trim() : '',
+      descripcion: descripcion.trim(),
       contenido: contenido.trim(),
       fragmentos,
       enlaceUrl: enlaceUrl ? enlaceUrl.trim() : '',
@@ -104,10 +50,7 @@ export const fuenteService = {
 
     return {
       success: true,
-      message: archivoInfo
-        ? `Archivo '${archivoInfo.nombreArchivo}' procesado, fragmentado e indexado exitosamente`
-        : 'Fuente institucional procesada, fragmentada e indexada exitosamente',
-      archivoProcesado: archivoInfo ? archivoInfo.nombreArchivo : null,
+      message: 'Documento normativo procesado, fragmentado e indexado exitosamente para la IA',
       totalFragmentos: fragmentos.length,
       fuente: toFuenteDto(nuevaFuente)
     };
@@ -168,16 +111,9 @@ export const fuenteService = {
     if (activo !== undefined) fuente.activo = Boolean(activo);
     if (categoria && CATEGORIAS_VALIDAS.includes(categoria)) fuente.categoria = categoria;
 
-    let nuevoContenido = contenido;
-    const archivoReferencia = datos.nombreArchivo || datos.archivo || datos.rutaArchivo;
-    if (!nuevoContenido && archivoReferencia) {
-      const info = await resolverYLeerArchivo(archivoReferencia);
-      nuevoContenido = info.contenido;
-    }
-
     let fragmentosRecalculados = false;
-    if (nuevoContenido && nuevoContenido.trim() !== fuente.contenido) {
-      fuente.contenido = nuevoContenido.trim();
+    if (contenido && contenido.trim() !== fuente.contenido) {
+      fuente.contenido = contenido.trim();
       fuente.fragmentos = dividirEnFragmentos(fuente.contenido);
       fragmentosRecalculados = true;
     }

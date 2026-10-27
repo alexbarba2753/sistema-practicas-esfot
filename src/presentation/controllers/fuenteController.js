@@ -10,15 +10,6 @@ export const fuenteController = {
     }
   },
 
-  async ingestarDesdeArchivo(req, res, next) {
-    try {
-      const resultado = await fuenteService.ingestarFuente(req.body, req.usuario._id);
-      res.status(201).json(resultado);
-    } catch (error) {
-      next(error);
-    }
-  },
-
   async listarFuentes(req, res, next) {
     try {
       const resultado = await fuenteService.listarFuentes(req.query);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { requireRole } from '../middlewares/roleMiddleware.js';
+import { procesarArchivoNormativo } from '../middlewares/uploadMiddleware.js';
 import { ROLES } from '../../domain/constants/practicasConstants.js';
 import { adminUsuariosController } from '../controllers/adminUsuariosController.js';
 import { aulaVirtualController } from '../controllers/aulaVirtualController.js';
@@ -34,11 +35,11 @@ router.delete('/aulas-virtuales/:id/estudiante', aulaVirtualController.desmatric
 
 // 3. Ingesta y Gestión de Fuentes Institucionales para la IA (RAG)
 
-router.post('/fuentes/archivo', fuenteController.ingestarDesdeArchivo);
-router.post('/fuentes', fuenteController.ingestarFuente);
+router.post('/fuentes/archivo', procesarArchivoNormativo, fuenteController.ingestarDesdeArchivo);
+router.post('/fuentes', procesarArchivoNormativo, fuenteController.ingestarFuente);
 router.get('/fuentes', fuenteController.listarFuentes);
 router.get('/fuentes/:id', fuenteController.obtenerFuente);
-router.put('/fuentes/:id', fuenteController.actualizarFuente);
+router.put('/fuentes/:id', procesarArchivoNormativo, fuenteController.actualizarFuente);
 router.patch('/fuentes/:id/estado', fuenteController.cambiarEstadoFuente);
 router.delete('/fuentes/:id', fuenteController.eliminarFuente);
 

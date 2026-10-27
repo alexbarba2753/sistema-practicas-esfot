@@ -56,21 +56,25 @@ export const fuenteService = {
     let { titulo, categoria, descripcion, contenido, enlaceUrl, version } = datos;
     const archivoReferencia = datos.nombreArchivo || datos.archivo || datos.rutaArchivo;
 
-    // Si se envía archivo .md o .txt, resolverlo y leerlo del disco
+    // Si se envía archivo .md o .txt por ruta/disco, resolverlo y leerlo
     let archivoInfo = null;
     if (!contenido && archivoReferencia) {
       archivoInfo = await resolverYLeerArchivo(archivoReferencia);
       contenido = archivoInfo.contenido;
+    }
 
-      // Deducir título si no se especificó (usar primer encabezado # del Markdown)
-      if (!titulo) {
-        const lineaH1 = contenido.split('\n').find((l) => l.startsWith('# '));
-        titulo = lineaH1 ? lineaH1.replace(/^#\s+/, '').trim() : archivoInfo.nombreArchivo.replace(/\.(md|txt)$/i, '');
-      }
+    // Deducir título si no se especificó (usar primer encabezado # del Markdown)
+    if (contenido && !titulo) {
+      const lineaH1 = contenido.split('\n').find((l) => l.startsWith('# '));
+      titulo = lineaH1
+        ? lineaH1.replace(/^#\s+/, '').trim()
+        : (archivoInfo?.nombreArchivo || datos.nombreArchivo || 'Documento Normativo Institucional');
+    }
 
-      if (!descripcion) {
-        descripcion = `Documento normativo institucional cargado desde archivo ${archivoInfo.nombreArchivo}`;
-      }
+    if (!descripcion) {
+      descripcion = archivoInfo
+        ? `Documento normativo institucional cargado desde archivo ${archivoInfo.nombreArchivo}`
+        : `Documento normativo institucional (${categoria || 'reglamento'})`;
     }
 
     if (!titulo || !contenido) {

@@ -55,5 +55,15 @@ export const aulaVirtualController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async cambiarEstadoAula(req, res, next) {
+    try {
+      const { estado } = req.body;
+      const resultado = await aulaVirtualService.cambiarEstadoAula(req.params.id, estado);
+      res.status(200).json(resultado);
+    } catch (error) {
+      next(error);
+    }
   }
 };

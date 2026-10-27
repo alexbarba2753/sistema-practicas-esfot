@@ -25,6 +25,7 @@ router.post('/aulas-virtuales', aulaVirtualController.crearAula);
 router.get('/aulas-virtuales', aulaVirtualController.listarAulas);
 router.get('/aulas-virtuales/:id', aulaVirtualController.obtenerAula);
 router.put('/aulas-virtuales/:id', aulaVirtualController.actualizarAula);
+router.patch('/aulas-virtuales/:id/estado', aulaVirtualController.cambiarEstadoAula);
 router.post('/aulas-virtuales/:id/estudiantes', aulaVirtualController.matricularEstudiantes);
 router.post('/aulas-virtuales/:id/estudiante', aulaVirtualController.matricularEstudiantes);
 router.delete('/aulas-virtuales/:id/estudiantes/:estudianteId', aulaVirtualController.desmatricularEstudiante);

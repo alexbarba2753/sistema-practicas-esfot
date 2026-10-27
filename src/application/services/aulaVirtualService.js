@@ -263,5 +263,43 @@ export const aulaVirtualService = {
       success: true,
       message: 'Estudiante desmatriculado exitosamente del aula virtual'
     };
+  },
+
+  /**
+   * Cambia el estado del aula virtual ('abierta' o 'cerrada') al culminar el proceso o reactivar
+   */
+  async cambiarEstadoAula(aulaId, nuevoEstado) {
+    if (!nuevoEstado || !Object.values(ESTADOS_AULA).includes(nuevoEstado)) {
+      throw errorHttp(`El estado especificado no es válido (permitidos: ${Object.values(ESTADOS_AULA).join(', ')})`, 400);
+    }
+
+    const aula = await AulaVirtual.findById(aulaId);
+    if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
+
+    // Si se desea reabrir un aula y tiene estudiante asignado, validar que no tenga otra activa en esa modalidad
+    if (nuevoEstado === ESTADOS_AULA.ABIERTA && aula.estudiante) {
+      const aulaActiva = await AulaVirtual.findOne({
+        estudiante: aula.estudiante,
+        modalidad: aula.modalidad,
+        estado: ESTADOS_AULA.ABIERTA,
+        _id: { $ne: aulaId }
+      });
+      if (aulaActiva) {
+        throw errorHttp(`El estudiante ya cuenta con otra aula virtual activa para la modalidad '${aula.modalidad}'`, 409);
+      }
+    }
+
+    aula.estado = nuevoEstado;
+    await aula.save();
+
+    const aulaPoblada = await AulaVirtual.findById(aulaId)
+      .populate('docenteTutor', 'nombres apellidos correo telefono')
+      .populate('estudiante', 'nombres apellidos correo cedula telefono estado');
+
+    return {
+      success: true,
+      message: `El estado del aula virtual ha sido actualizado a '${nuevoEstado}' exitosamente`,
+      aulaVirtual: toAulaVirtualDto(aulaPoblada)
+    };
   }
 };

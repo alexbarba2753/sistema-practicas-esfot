@@ -1,5 +1,7 @@
+import jwt from 'jsonwebtoken';
 import { connectDB, disconnectDB } from '../db.js';
-import { Usuario, AulaVirtual, ActividadLaboral, ActividadComunitaria } from '../models/index.js';
+import { ENV } from '../../config/env.js';
+import { Usuario, AulaVirtual, ActividadLaboral, ActividadComunitaria, FormularioAprobacion } from '../models/index.js';
 import { ROLES, ESTADOS_AULA, ESTADOS_ACTIVIDAD, MODALIDADES } from '../../../domain/constants/practicasConstants.js';
 
 // Catálogo de 30 actividades laborales realistas (TSDS - ESFOT EPN)
@@ -64,158 +66,163 @@ const TAREAS_COMUNITARIAS = [
   }
 ];
 
-export async function sembrarHoras(correoEstudiante = null) {
+export async function sembrarHorasDemo() {
   try {
     console.log('\n============================================================');
-    console.log('   ESFOT - EPN: SCRIPT SEEDER DE HORAS PARA PRUEBAS (CLI)   ');
+    console.log('   ESFOT - EPN: GENERADOR DE AMBIENTE DEMO Y HORAS (CLI)   ');
+    console.log('   (Crea usuario, aulas y horas exclusivas para pruebas)   ');
     console.log('============================================================\n');
 
     await connectDB();
 
-    // 1. Localizar al estudiante
-    let estudiante = null;
-    if (correoEstudiante) {
-      estudiante = await Usuario.findOne({ correo: correoEstudiante.trim().toLowerCase(), rol: ROLES.ESTUDIANTE });
-      if (!estudiante) {
-        console.error(`[Error] No se encontró ningún estudiante con el correo: ${correoEstudiante}`);
-        process.exit(1);
+    const CORREO_DEMO_ESTUDIANTE = 'estudiante.demo@epn.edu.ec';
+    const CORREO_DEMO_DOCENTE = 'docente.demo@epn.edu.ec';
+
+    // 1. Limpiar ambiente demo previo si ya existía (sin tocar ningún otro usuario)
+    const demoEstudiantePrevio = await Usuario.findOne({ correo: CORREO_DEMO_ESTUDIANTE });
+    if (demoEstudiantePrevio) {
+      const aulasPrevias = await AulaVirtual.find({ estudiante: demoEstudiantePrevio._id });
+      for (const a of aulasPrevias) {
+        await ActividadLaboral.deleteMany({ aulaVirtual: a._id });
+        await ActividadComunitaria.deleteMany({ aulaVirtual: a._id });
+        await FormularioAprobacion.deleteMany({ aulaVirtual: a._id });
       }
-    } else {
-      // Buscar el primer estudiante con aulas o el primero registrado
-      estudiante = await Usuario.findOne({ rol: ROLES.ESTUDIANTE }).sort({ createdAt: -1 });
-      if (!estudiante) {
-        console.error('[Error] No existen estudiantes en la base de datos. Por favor crea o registra uno primero.');
-        process.exit(1);
-      }
+      await AulaVirtual.deleteMany({ estudiante: demoEstudiantePrevio._id });
+      await Usuario.deleteOne({ _id: demoEstudiantePrevio._id });
+      console.log('[Limpieza] Ambiente demo anterior eliminado para generar uno nuevo e impecable.');
     }
 
-    console.log(`[Estudiante Seleccionado] ${estudiante.nombres} ${estudiante.apellidos} (${estudiante.correo})`);
-
-    // 2. Localizar o asegurar un docente tutor
-    let docente = await Usuario.findOne({ rol: ROLES.DOCENTE });
-    if (!docente) {
-      docente = await Usuario.create({
-        nombres: 'Tutor',
-        apellidos: 'Institucional ESFOT',
-        correo: 'docente.tutor@epn.edu.ec',
+    // 2. Crear docente demo (o reutilizar si ya existe)
+    let demoDocente = await Usuario.findOne({ correo: CORREO_DEMO_DOCENTE });
+    if (!demoDocente) {
+      demoDocente = await Usuario.create({
+        nombres: 'Tutor Demo',
+        apellidos: 'ESFOT Pruebas',
+        correo: CORREO_DEMO_DOCENTE,
         password: 'Password123!',
-        cedula: '1720001122',
-        telefono: '0990001122',
+        cedula: '1729990001',
+        telefono: '0990000001',
         rol: ROLES.DOCENTE,
         correoVerificado: true,
         estado: 'activo'
       });
-      console.log(`[Docente Creado] ${docente.nombres} ${docente.apellidos} (${docente.correo})`);
+      console.log(`(+) Docente Demo creado: ${demoDocente.correo}`);
     }
 
-    // 3. Procesar Aula de Prácticas Laborales
-    let aulaLaboral = await AulaVirtual.findOne({
-      estudiante: estudiante._id,
-      modalidad: MODALIDADES.LABORAL
+    // 3. Crear estudiante demo nuevo e independiente
+    const demoEstudiante = await Usuario.create({
+      nombres: 'Estudiante Demo',
+      apellidos: 'Pruebas Completas',
+      correo: CORREO_DEMO_ESTUDIANTE,
+      password: 'Password123!',
+      cedula: '1729990002',
+      telefono: '0990000002',
+      rol: ROLES.ESTUDIANTE,
+      correoVerificado: true,
+      estado: 'activo'
     });
+    console.log(`(+) Estudiante Demo creado: ${demoEstudiante.correo} (ID: ${demoEstudiante._id})`);
 
-    if (!aulaLaboral) {
-      aulaLaboral = await AulaVirtual.create({
-        nombre: 'Prácticas Laborales TSDS - 2024-B',
-        codigo: 'PRAC-LAB-' + Math.floor(1000 + Math.random() * 9000),
-        modalidad: MODALIDADES.LABORAL,
-        horasRequeridas: 240,
-        periodo: '2024-B',
-        fechaInicio: new Date(Date.now() - 60 * 24 * 3600 * 1000),
-        fechaFin: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-        estudiante: estudiante._id,
-        docenteTutor: docente._id,
-        estado: ESTADOS_AULA.ABIERTA
-      });
-      console.log(`(+) Creada aula laboral de prueba: "${aulaLaboral.nombre}" (ID: ${aulaLaboral._id})`);
-    } else {
-      console.log(`[Aula Laboral Encontrada] "${aulaLaboral.nombre}" (ID: ${aulaLaboral._id})`);
-    }
+    // 4. Crear Aula Laboral Demo (240 Horas)
+    const aulaLaboral = await AulaVirtual.create({
+      nombre: 'Prácticas Laborales - Demo Completa 240h',
+      codigo: 'PRAC-LAB-DEMO-' + Math.floor(1000 + Math.random() * 9000),
+      modalidad: MODALIDADES.LABORAL,
+      horasRequeridas: 240,
+      periodo: '2024-B',
+      fechaInicio: new Date(Date.now() - 60 * 24 * 3600 * 1000),
+      fechaFin: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+      estudiante: demoEstudiante._id,
+      docenteTutor: demoDocente._id,
+      estado: ESTADOS_AULA.ABIERTA,
+      expedienteEntregado: false
+    });
+    console.log(`(+) Aula Laboral Demo creada: "${aulaLaboral.nombre}" (ID: ${aulaLaboral._id})`);
 
-    // Limpiar bitácoras previas del aula para evitar duplicados en la prueba
-    await ActividadLaboral.deleteMany({ aulaVirtual: aulaLaboral._id });
-
-    // Sembrar 30 días x 8h = 240 horas
-    const fechaBase = new Date(Date.now() - 40 * 24 * 3600 * 1000);
-    const actividadesLaboralesInsertar = [];
-
+    // Sembrar 30 actividades de 8h = 240h aprobadas
+    const fechaBaseLaboral = new Date(Date.now() - 40 * 24 * 3600 * 1000);
+    const actividadesLaborales = [];
     for (let i = 0; i < 30; i++) {
-      const fechaDia = new Date(fechaBase.getTime() + i * 24 * 3600 * 1000);
-      actividadesLaboralesInsertar.push({
-        estudiante: estudiante._id,
+      actividadesLaborales.push({
+        estudiante: demoEstudiante._id,
         aulaVirtual: aulaLaboral._id,
-        fecha: fechaDia,
+        fecha: new Date(fechaBaseLaboral.getTime() + i * 24 * 3600 * 1000),
         horaEntrada: '08:00',
         horaSalida: '16:30',
         horas: 8,
-        descripcion: TAREAS_LABORALES[i] || `Desarrollo de módulos de software del proyecto - Jornada ${i + 1}`,
+        descripcion: TAREAS_LABORALES[i] || `Desarrollo de componentes del sistema - Día ${i + 1}`,
         estadoAprobacion: ESTADOS_ACTIVIDAD.APROBADO,
-        observacionesDocente: 'Actividad técnica validada y aprobada conforme a los objetivos de la práctica.'
+        observacionesDocente: 'Actividad técnica validada y aprobada.'
       });
     }
+    await ActividadLaboral.insertMany(actividadesLaborales);
+    console.log(`✔ [Prácticas Laborales] Se registraron 30 bitácoras (240 HORAS APROBADAS).`);
 
-    await ActividadLaboral.insertMany(actividadesLaboralesInsertar);
-    console.log(`✔ [Prácticas Laborales] Se registraron exitosamente 30 actividades (240 HORAS APROBADAS).`);
-
-    // 4. Procesar Aula de Servicio Comunitario
-    let aulaComunitaria = await AulaVirtual.findOne({
-      estudiante: estudiante._id,
-      modalidad: MODALIDADES.COMUNITARIO
+    // 5. Crear Aula Comunitaria Demo (96 Horas)
+    const aulaComunitaria = await AulaVirtual.create({
+      nombre: 'Servicio Comunitario - Demo Completa 96h',
+      codigo: 'SERV-COM-DEMO-' + Math.floor(1000 + Math.random() * 9000),
+      modalidad: MODALIDADES.COMUNITARIO,
+      horasRequeridas: 96,
+      periodo: '2024-B',
+      fechaInicio: new Date(Date.now() - 45 * 24 * 3600 * 1000),
+      fechaFin: new Date(Date.now() + 45 * 24 * 3600 * 1000),
+      estudiante: demoEstudiante._id,
+      docenteTutor: demoDocente._id,
+      estado: ESTADOS_AULA.ABIERTA,
+      expedienteEntregado: false
     });
+    console.log(`(+) Aula Comunitaria Demo creada: "${aulaComunitaria.nombre}" (ID: ${aulaComunitaria._id})`);
 
-    if (!aulaComunitaria) {
-      aulaComunitaria = await AulaVirtual.create({
-        nombre: 'Servicio Comunitario TSDS - 2024-B',
-        codigo: 'SERV-COM-' + Math.floor(1000 + Math.random() * 9000),
-        modalidad: MODALIDADES.COMUNITARIO,
-        horasRequeridas: 96,
-        periodo: '2024-B',
-        fechaInicio: new Date(Date.now() - 45 * 24 * 3600 * 1000),
-        fechaFin: new Date(Date.now() + 45 * 24 * 3600 * 1000),
-        estudiante: estudiante._id,
-        docenteTutor: docente._id,
-        estado: ESTADOS_AULA.ABIERTA
-      });
-      console.log(`(+) Creada aula comunitaria de prueba: "${aulaComunitaria.nombre}" (ID: ${aulaComunitaria._id})`);
-    } else {
-      console.log(`[Aula Comunitaria Encontrada] "${aulaComunitaria.nombre}" (ID: ${aulaComunitaria._id})`);
-    }
-
-    // Limpiar actividades comunitarias previas
-    await ActividadComunitaria.deleteMany({ aulaVirtual: aulaComunitaria._id });
-
-    const actividadesComunitariasInsertar = TAREAS_COMUNITARIAS.map((t, idx) => ({
-      estudiante: estudiante._id,
+    // Sembrar 4 actividades comunitarias = 96h aprobadas
+    const actividadesComunitarias = TAREAS_COMUNITARIAS.map((t, idx) => ({
+      estudiante: demoEstudiante._id,
       aulaVirtual: aulaComunitaria._id,
       fecha: new Date(Date.now() - (20 - idx * 5) * 24 * 3600 * 1000),
       horas: t.horas,
       comunidadOInstitucion: t.institucion,
       beneficiariosAproximados: t.beneficiarios,
       descripcion: t.descripcion,
-      archivoEvidenciaUrl: 'https://esfot.epn.edu.ec/evidencias/comunitario_cert_' + (idx + 1) + '.pdf',
+      archivoEvidenciaUrl: 'https://esfot.epn.edu.ec/evidencias/demo_cert_' + (idx + 1) + '.pdf',
       estadoAprobacion: ESTADOS_ACTIVIDAD.APROBADO,
-      observacionesDocente: 'Horas comunitarias verificadas y acreditadas favorablemente.'
+      observacionesDocente: 'Horas comunitarias verificadas y acreditadas.'
     }));
+    await ActividadComunitaria.insertMany(actividadesComunitarias);
+    console.log(`✔ [Servicio Comunitario] Se registraron 4 actividades (96 HORAS APROBADAS).`);
 
-    await ActividadComunitaria.insertMany(actividadesComunitariasInsertar);
-    console.log(`✔ [Servicio Comunitario] Se registraron exitosamente 4 actividades (96 HORAS APROBADAS).`);
+    // 6. Generar Token JWT de autenticación listo para usar en Postman
+    const tokenDemo = jwt.sign(
+      {
+        id: demoEstudiante._id.toString(),
+        correo: demoEstudiante.correo,
+        rol: demoEstudiante.rol,
+        nombres: demoEstudiante.nombres,
+        apellidos: demoEstudiante.apellidos
+      },
+      ENV.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
-    console.log('\n============================================================');
-    console.log('   ¡SIMULACIÓN COMPLETADA EXITOSAMENTE!                     ');
-    console.log(`   - Laborales:   240/240 horas aprobadas (Aula ID: ${aulaLaboral._id})`);
-    console.log(`   - Comunitarias: 96/96 horas aprobadas  (Aula ID: ${aulaComunitaria._id})`);
-    console.log('   Ya puedes ir a Postman y probar la generación de informes');
-    console.log('   asistida por IA con los 30 días analizados en vivo.');
-    console.log('============================================================\n');
+    console.log('\n================================================================================');
+    console.log('   DATOS DEL AMBIENTE DEMO GENERADO (LISTO PARA POSTMAN)                       ');
+    console.log('================================================================================');
+    console.log(`   USUARIO ESTUDIANTE DEMO:`);
+    console.log(`   - Correo:              ${CORREO_DEMO_ESTUDIANTE}`);
+    console.log(`   - Contraseña:          Password123!`);
+    console.log(`   - ID Estudiante:       ${demoEstudiante._id}`);
+    console.log(`\n   AULAS VIRTUALES CON 100% DE HORAS APROBADAS:`);
+    console.log(`   - Aula Laboral ID:     ${aulaLaboral._id}  (240h cumplidas para probar reporte laboral IA)`);
+    console.log(`   - Aula Comunitaria ID: ${aulaComunitaria._id}  (96h cumplidas para probar reporte comunitario IA)`);
+    console.log(`\n   TOKEN JWT (Copia y pega en Postman Authorization -> Bearer Token):`);
+    console.log(`   ${tokenDemo}`);
+    console.log('================================================================================\n');
 
     await disconnectDB();
     process.exit(0);
   } catch (error) {
-    console.error('\n[Error Fatal al sembrar horas]:', error.message);
+    console.error('\n[Error Fatal al sembrar ambiente demo]:', error.message);
     process.exit(1);
   }
 }
 
-// Ejecución directa si se invoca por CLI
-const correoArg = process.argv[2] && !process.argv[2].startsWith('-') ? process.argv[2] : null;
-sembrarHoras(correoArg);
+sembrarHorasDemo();

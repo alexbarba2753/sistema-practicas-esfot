@@ -133,20 +133,21 @@ Cita los requisitos exactos, límites de horas o nombres de formularios cuando c
       throw errorHttp('Esta aula virtual no pertenece a la modalidad de Prácticas Laborales', 400);
     }
 
-    const actividades = await ActividadLaboral.find({
+    const actividadesAprobadas = await ActividadLaboral.find({
       aulaVirtual: aulaId,
       estadoAprobacion: ESTADOS_ACTIVIDAD.APROBADO
     }).sort({ fecha: 1 });
 
-    const totalActividades = actividades.length > 0
-      ? actividades
-      : await ActividadLaboral.find({ aulaVirtual: aulaId }).sort({ fecha: 1 });
+    const horasAprobadas = actividadesAprobadas.reduce((acc, act) => acc + act.horas, 0);
 
-    if (totalActividades.length === 0) {
-      throw errorHttp('No tienes actividades registradas en tu bitácora para generar el informe', 400);
+    if (horasAprobadas < aula.horasRequeridas) {
+      throw errorHttp(
+        `Para generar el informe técnico final con IA debes haber completado y tener aprobadas las ${aula.horasRequeridas} horas reglamentarias. Actualmente cuentas con ${horasAprobadas}h aprobadas de ${aula.horasRequeridas}h.`,
+        400
+      );
     }
 
-    const detalleBitacoras = totalActividades
+    const detalleBitacoras = actividadesAprobadas
       .map((a, idx) => `Día ${idx + 1} (${a.horas}h): ${a.descripcion}`)
       .join('\n');
 
@@ -211,7 +212,7 @@ ${totalActividades.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
     return {
       success: true,
       aulaId,
-      totalActividadesAnalizadas: totalActividades.length,
+      totalActividadesAnalizadas: actividadesAprobadas.length,
       informeGenerado: textoGenerado
     };
   },
@@ -231,12 +232,21 @@ ${totalActividades.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
       throw errorHttp('Esta aula virtual no pertenece a la modalidad de Servicio Comunitario', 400);
     }
 
-    const actividades = await ActividadComunitaria.find({ aulaVirtual: aulaId }).sort({ fecha: 1 });
-    if (actividades.length === 0) {
-      throw errorHttp('No tienes actividades comunitarias registradas para generar el informe', 400);
+    const actividadesAprobadas = await ActividadComunitaria.find({
+      aulaVirtual: aulaId,
+      estadoAprobacion: ESTADOS_ACTIVIDAD.APROBADO
+    }).sort({ fecha: 1 });
+
+    const horasAprobadas = actividadesAprobadas.reduce((acc, act) => acc + act.horas, 0);
+
+    if (horasAprobadas < aula.horasRequeridas) {
+      throw errorHttp(
+        `Para generar el informe de servicio comunitario con IA debes haber completado y tener aprobadas las ${aula.horasRequeridas} horas reglamentarias. Actualmente cuentas con ${horasAprobadas}h aprobadas de ${aula.horasRequeridas}h.`,
+        400
+      );
     }
 
-    const detalle = actividades
+    const detalle = actividadesAprobadas
       .map((a, i) => `Actividad ${i + 1}: ${a.comunidadOInstitucion} (${a.horas}h, ~${a.beneficiariosAproximados} beneficiarios). Descripción: ${a.descripcion}`)
       .join('\n');
 
@@ -270,10 +280,10 @@ ESTRUCTURA EL INFORME CON:
     }
 
     if (!textoGenerado) {
-      const totalBeneficiarios = actividades.reduce((acc, a) => acc + (a.beneficiariosAproximados || 0), 0);
+      const totalBeneficiarios = actividadesAprobadas.reduce((acc, a) => acc + (a.beneficiariosAproximados || 0), 0);
       textoGenerado = `1. RESUMEN EJECUTIVO DE ACTIVIDADES SOLIDARIAS Y DE COOPERACIÓN:
 Se cumplieron actividades orientadas al fortalecimiento comunitario e institucional:
-${actividades.map((a) => `- ${a.comunidadOInstitucion}: ${a.descripcion} (${a.horas} horas)`).join('\n')}
+${actividadesAprobadas.map((a) => `- ${a.comunidadOInstitucion}: ${a.descripcion} (${a.horas} horas)`).join('\n')}
 
 2. POBLACIÓN BENEFICIARIA E IMPACTO SOCIAL LOGRADO:
 Se brindó atención y soporte a un estimado de ${totalBeneficiarios} beneficiarios directos e indirectos, facilitando el acceso a herramientas digitales y procesos colaborativos.
@@ -287,7 +297,7 @@ Se brindó atención y soporte a un estimado de ${totalBeneficiarios} beneficiar
     return {
       success: true,
       aulaId,
-      totalActividadesAnalizadas: actividades.length,
+      totalActividadesAnalizadas: actividadesAprobadas.length,
       informeGenerado: textoGenerado
     };
   }

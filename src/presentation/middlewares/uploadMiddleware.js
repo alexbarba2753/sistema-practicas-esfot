@@ -9,7 +9,7 @@ export const procesarArchivoNormativo = async (req, res, next) => {
   try {
     const contentType = req.headers['content-type'] || '';
 
-    // Si viene como JSON convencional (por compatibilidad)
+    // Si viene como JSON convencional 
     if (contentType.includes('application/json')) {
       req.body = { ...req.query, ...req.body };
       return next();
@@ -52,7 +52,7 @@ export const procesarArchivoNormativo = async (req, res, next) => {
     }
 
     if (!req.body.contenido) {
-      throw errorHttp('Debe adjuntar un archivo Markdown (.md o .txt) con contenido válido', 400);
+      throw errorHttp('Debe adjuntar un archivo Markdown (.md) con contenido válido', 400);
     }
 
     next();

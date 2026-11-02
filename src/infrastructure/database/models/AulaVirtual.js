@@ -49,6 +49,14 @@ const aulaVirtualSchema = new mongoose.Schema(
       type: String,
       enum: Object.values(ESTADOS_AULA),
       default: ESTADOS_AULA.ABIERTA
+    },
+    expedienteEntregado: {
+      type: Boolean,
+      default: false
+    },
+    fechaEntregaExpediente: {
+      type: Date,
+      default: null
     }
   },
   {

@@ -32,6 +32,11 @@ const formularioAprobacionSchema = new mongoose.Schema(
       type: Number,
       required: true
     },
+    dictamen: {
+      type: String,
+      enum: ['Aprobado', 'No Aprobado'],
+      default: 'Aprobado'
+    },
     calificacionTutor: {
       type: Number,
       min: 0,

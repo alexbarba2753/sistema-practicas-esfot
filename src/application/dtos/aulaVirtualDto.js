@@ -46,6 +46,8 @@ export const toAulaVirtualDto = (aula) => {
     fechaInicio: aulaObj.fechaInicio,
     fechaFin: aulaObj.fechaFin,
     estado: aulaObj.estado,
+    expedienteEntregado: Boolean(aulaObj.expedienteEntregado),
+    fechaEntregaExpediente: aulaObj.fechaEntregaExpediente || null,
     createdAt: aulaObj.createdAt
   };
 };

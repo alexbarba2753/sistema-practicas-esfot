@@ -63,7 +63,7 @@ export const actividadService = {
     }
 
     if (aula.modalidad !== MODALIDADES.LABORAL) {
-      throw errorHttp('Esta aula virtual no corresponde a la modalidad de Prácticas Laborales', 400);
+      throw errorHttp('Esta aula virtual no pertenece a la modalidad de Prácticas Laborales', 400);
     }
 
     if (aula.estado !== ESTADOS_AULA.ABIERTA) {
@@ -121,6 +121,10 @@ export const actividadService = {
       throw errorHttp('No tienes permiso para consultar las actividades de esta aula virtual', 403);
     }
 
+    if (aula.modalidad !== MODALIDADES.LABORAL) {
+      throw errorHttp('Esta aula virtual no pertenece a la modalidad de Prácticas Laborales', 400);
+    }
+
     const actividades = await ActividadLaboral.find({ aulaVirtual: aulaId }).sort({ fecha: -1 });
     const resumen = await this.calcularHorasAula(aulaId);
 
@@ -175,7 +179,7 @@ export const actividadService = {
     }
 
     if (aula.modalidad !== MODALIDADES.COMUNITARIO) {
-      throw errorHttp('Esta aula virtual no corresponde a la modalidad de Servicio Comunitario', 400);
+      throw errorHttp('Esta aula virtual no pertenece a la modalidad de Servicio Comunitario', 400);
     }
 
     if (aula.estado !== ESTADOS_AULA.ABIERTA) {
@@ -232,6 +236,10 @@ export const actividadService = {
 
     if (!esEstudianteAsignado && !esDocenteTutor && usuario.rol !== 'administrador') {
       throw errorHttp('No tienes permiso para consultar las actividades de esta aula virtual', 403);
+    }
+
+    if (aula.modalidad !== MODALIDADES.COMUNITARIO) {
+      throw errorHttp('Esta aula virtual no pertenece a la modalidad de Servicio Comunitario', 400);
     }
 
     const actividades = await ActividadComunitaria.find({ aulaVirtual: aulaId }).sort({ fecha: -1 });

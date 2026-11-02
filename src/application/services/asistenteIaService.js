@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import { ENV } from '../../infrastructure/config/env.js';
 import { FuenteInstitucional, AulaVirtual, ActividadLaboral, ActividadComunitaria } from '../../infrastructure/database/models/index.js';
-import { ESTADOS_ACTIVIDAD } from '../../domain/constants/practicasConstants.js';
+import { ESTADOS_ACTIVIDAD, MODALIDADES } from '../../domain/constants/practicasConstants.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
 
 let groqClient = null;
@@ -129,6 +129,10 @@ Cita los requisitos exactos, límites de horas o nombres de formularios cuando c
       throw errorHttp('No tienes permiso para generar reportes en esta aula', 403);
     }
 
+    if (aula.modalidad !== MODALIDADES.LABORAL) {
+      throw errorHttp('Esta aula virtual no pertenece a la modalidad de Prácticas Laborales', 400);
+    }
+
     const actividades = await ActividadLaboral.find({
       aulaVirtual: aulaId,
       estadoAprobacion: ESTADOS_ACTIVIDAD.APROBADO
@@ -221,6 +225,10 @@ ${totalActividades.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
 
     if (aula.estudiante?.toString() !== estudianteId.toString()) {
       throw errorHttp('No tienes permiso para generar reportes en esta aula', 403);
+    }
+
+    if (aula.modalidad !== MODALIDADES.COMUNITARIO) {
+      throw errorHttp('Esta aula virtual no pertenece a la modalidad de Servicio Comunitario', 400);
     }
 
     const actividades = await ActividadComunitaria.find({ aulaVirtual: aulaId }).sort({ fecha: 1 });

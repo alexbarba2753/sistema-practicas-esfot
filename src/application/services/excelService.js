@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import ExcelJS from 'exceljs';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
+import { limpiarTextoParaExcel } from './asistenteIaService.js';
 
 const TEMPLATES_DIR = path.join(process.cwd(), 'documentacion');
 const DESCARGAS_DIR = path.join(process.cwd(), 'archivos_descargados');
@@ -69,7 +70,12 @@ export const excelService = {
 
     // 4. INFORMACIÓN SOBRE LAS PRÁCTICAS
     if (nombreCompletoDocente) worksheet.getCell('D33').value = nombreCompletoDocente;
-    if (contenido.asignaturasUtilidad) worksheet.getCell('A43').value = contenido.asignaturasUtilidad;
+    if (contenido.asignaturasUtilidad) {
+      const cellA43 = worksheet.getCell('A43');
+      cellA43.value = limpiarTextoParaExcel(contenido.asignaturasUtilidad);
+      cellA43.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+      cellA43.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+    }
 
     // 5. ACTIVIDADES REALIZADAS
     worksheet.getCell('D47').value = entidad.areaAsignada || 'Desarrollo de Software / TI';
@@ -79,11 +85,58 @@ export const excelService = {
     if (aula?.fechaFin) {
       worksheet.getCell('H49').value = new Date(aula.fechaFin).toLocaleDateString('es-EC');
     }
+
+    // Horario semanal (Lunes a Viernes y Total Horas Semanales)
+    const horario = formularioPendiente?.horarioSemanal || {};
+    const horaIni = horario.horaInicio || '08:00';
+    const horaFin = horario.horaFin || '16:30';
+    const horasSem = horario.horasSemanales || 40;
+
+    ['B51', 'C51', 'D51', 'E51', 'F51'].forEach((ref) => {
+      const c = worksheet.getCell(ref);
+      c.value = horaIni;
+      c.font = { name: 'Tahoma', size: 8, bold: true, color: { argb: 'FF000000' } };
+      c.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    ['B52', 'C52', 'D52', 'E52', 'F52'].forEach((ref) => {
+      const c = worksheet.getCell(ref);
+      c.value = horaFin;
+      c.font = { name: 'Tahoma', size: 8, bold: true, color: { argb: 'FF000000' } };
+      c.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    const cellHorasSem = worksheet.getCell('I52');
+    cellHorasSem.value = horasSem;
+    cellHorasSem.font = { name: 'Tahoma', size: 9, bold: true, color: { argb: 'FF000000' } };
+    cellHorasSem.alignment = { vertical: 'middle', horizontal: 'center' };
+
     worksheet.getCell('I54').value = formularioPendiente?.totalHoras || aula?.horasRequeridas || 240;
 
-    if (contenido.principalesActividades) worksheet.getCell('B56').value = contenido.principalesActividades;
-    if (contenido.habilidadesAdquiridas) worksheet.getCell('B58').value = contenido.habilidadesAdquiridas;
-    if (contenido.observacionesTemas) worksheet.getCell('A62').value = contenido.observacionesTemas;
+    // Escribir en la celda maestra A56 (A56:J56 merged)
+    if (contenido.principalesActividades) {
+      const cellA56 = worksheet.getCell('A56');
+      cellA56.value = limpiarTextoParaExcel(contenido.principalesActividades);
+      cellA56.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+      cellA56.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+    }
+
+    // Escribir en la celda maestra A58 (A58:J58 merged)
+    if (contenido.habilidadesAdquiridas) {
+      const cellA58 = worksheet.getCell('A58');
+      cellA58.value = limpiarTextoParaExcel(contenido.habilidadesAdquiridas);
+      cellA58.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+      cellA58.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+    }
+
+    // Observaciones o temas no cubiertos (A62:J62 merged) con fuente negra normal
+    const cellA62 = worksheet.getCell('A62');
+    cellA62.value = limpiarTextoParaExcel(
+      contenido.observacionesTemas ||
+        'Durante la práctica se complementaron los conocimientos académicos con estándares de desarrollo ágil y arquitectura en la nube.'
+    );
+    cellA62.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+    cellA62.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
 
     // 6. FIRMAS TUTOR ACADÉMICO
     if (nombreCompletoDocente) worksheet.getCell('H103').value = nombreCompletoDocente;
@@ -136,10 +189,30 @@ export const excelService = {
     if (entidad.tipoEntidad) worksheet.getCell('C39').value = entidad.tipoEntidad;
 
     // 6. ACTIVIDADES REALIZADAS
-    if (contenido.resumenActividades) worksheet.getCell('A48').value = contenido.resumenActividades;
-    if (contenido.contribucionConocimientos) worksheet.getCell('A50').value = contenido.contribucionConocimientos;
-    if (contenido.resultadosAprendizaje) worksheet.getCell('A52').value = contenido.resultadosAprendizaje;
-    if (contenido.asignaturasMalla) worksheet.getCell('A54').value = contenido.asignaturasMalla;
+    if (contenido.resumenActividades) {
+      const cell = worksheet.getCell('A48');
+      cell.value = limpiarTextoParaExcel(contenido.resumenActividades);
+      cell.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+      cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+    }
+    if (contenido.contribucionConocimientos) {
+      const cell = worksheet.getCell('A50');
+      cell.value = limpiarTextoParaExcel(contenido.contribucionConocimientos);
+      cell.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+      cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+    }
+    if (contenido.resultadosAprendizaje) {
+      const cell = worksheet.getCell('A52');
+      cell.value = limpiarTextoParaExcel(contenido.resultadosAprendizaje);
+      cell.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+      cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+    }
+    if (contenido.asignaturasMalla) {
+      const cell = worksheet.getCell('A54');
+      cell.value = limpiarTextoParaExcel(contenido.asignaturasMalla);
+      cell.font = { name: 'Tahoma', size: 9, color: { argb: 'FF000000' } };
+      cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+    }
 
     // 7. INFORMACIÓN ADICIONAL
     if (aula?.fechaInicio) {

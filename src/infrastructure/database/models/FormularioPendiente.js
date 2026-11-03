@@ -40,6 +40,12 @@ const formularioPendienteSchema = new mongoose.Schema(
       tutorEmpresarial: { type: String, default: 'Ing. Tutor Empresarial' },
       areaAsignada: { type: String, default: 'Desarrollo de Software / TI' }
     },
+    // Horario semanal de la jornada de prácticas
+    horarioSemanal: {
+      horaInicio: { type: String, default: '08:00' },
+      horaFin: { type: String, default: '16:30' },
+      horasSemanales: { type: Number, default: 40 }
+    },
     // Contenido técnico elaborado por la IA (editable manualmente por el estudiante con 0 tokens)
     contenidoIa: {
       // Campos específicos para Prácticas Laborales (Formulario F_AA_119)

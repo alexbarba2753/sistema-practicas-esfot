@@ -262,6 +262,11 @@ export const expedienteService = {
       Object.assign(formPendiente.entidadReceptora, datosActualizados.entidadReceptora);
     }
 
+    // Actualizar horario semanal si fue provisto
+    if (datosActualizados.horarioSemanal && typeof datosActualizados.horarioSemanal === 'object') {
+      Object.assign(formPendiente.horarioSemanal, datosActualizados.horarioSemanal);
+    }
+
     // Actualizar secciones de contenido IA si fueron provistos
     if (datosActualizados.contenidoIa && typeof datosActualizados.contenidoIa === 'object') {
       Object.assign(formPendiente.contenidoIa, datosActualizados.contenidoIa);

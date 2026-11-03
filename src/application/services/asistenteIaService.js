@@ -18,24 +18,76 @@ const getGroqClient = () => {
   return groqClient;
 };
 
+export function limpiarTextoParaExcel(texto) {
+  if (!texto || typeof texto !== 'string') return '';
+
+  let limpio = texto
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/^\s*[-*_]{3,}\s*$/gm, '')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^\|[-:| ]+\|\s*$/gm, '');
+
+  const lineas = limpio.split('\n');
+  const lineasProcesadas = [];
+
+  for (const linea of lineas) {
+    const l = linea.trim();
+    if (l.startsWith('|') && l.endsWith('|')) {
+      const celdas = l.split('|').map((c) => c.trim()).filter((c) => c.length > 0);
+      if (celdas.some((c) => /código|asignatura|temática|evidencia/i.test(c))) {
+        continue;
+      }
+      if (celdas.length >= 2) {
+        lineasProcesadas.push(`• ${celdas[0]}: ${celdas.slice(1).join(' - ')}`);
+      } else if (celdas.length === 1) {
+        lineasProcesadas.push(`• ${celdas[0]}`);
+      }
+    } else {
+      lineasProcesadas.push(linea);
+    }
+  }
+
+  limpio = lineasProcesadas.join('\n');
+
+  limpio = limpio
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '• ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return limpio;
+}
+
 function parsearSeccionesLaboral(texto) {
   let asignaturas = '';
   let actividades = '';
   let habilidades = '';
 
-  const match1 = texto.match(/1\.\s*ASIGNATURAS[^\n]*\n([\s\S]*?)(?=2\.\s*PRINCIPALES|$)/i);
-  const match2 = texto.match(/2\.\s*PRINCIPALES[^\n]*\n([\s\S]*?)(?=3\.\s*HABILIDADES|$)/i);
-  const match3 = texto.match(/3\.\s*HABILIDADES[^\n]*\n([\s\S]*?)$/i);
+  const match1 = texto.match(/(?:^|\n)(?:##\s*)?(?:1\.\s*)?ASIGNATURAS[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:2\.\s*)?PRINCIPALES|$)/i);
+  const match2 = texto.match(/(?:^|\n)(?:##\s*)?(?:2\.\s*)?PRINCIPALES[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:HABILIDADES|DESTREZAS)|$)/i);
+  const match3 = texto.match(/(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:HABILIDADES|DESTREZAS)[^\n]*\n([\s\S]*?)$/i);
 
   if (match1) asignaturas = match1[1].trim();
   if (match2) actividades = match2[1].trim();
   if (match3) habilidades = match3[1].trim();
 
+  // Fallback si la sección 3 no vino o quedó vacía
+  if (!habilidades) {
+    habilidades = `• Aplicación de buenas prácticas de desarrollo de software y arquitectura limpia modular.\n• Diseño e integración de bases de datos relacionales y NoSQL con consultas y agregaciones optimizadas.\n• Implementación y aseguramiento de APIs RESTful con autenticación JWT y control de acceso basado en roles.\n• Trabajo colaborativo con control de versiones Git y metodologías ágiles.\n• Autonomía en la resolución de problemas técnicos y elaboración de documentación formal.`;
+  }
+
   if (!actividades && !asignaturas) {
     actividades = texto.trim();
   }
 
-  return { asignaturas, actividades, habilidades };
+  return {
+    asignaturas: limpiarTextoParaExcel(asignaturas),
+    actividades: limpiarTextoParaExcel(actividades),
+    habilidades: limpiarTextoParaExcel(habilidades)
+  };
 }
 
 function parsearSeccionesComunitario(texto) {
@@ -43,9 +95,9 @@ function parsearSeccionesComunitario(texto) {
   let contribucion = '';
   let resultados = '';
 
-  const match1 = texto.match(/1\.\s*RESUMEN[^\n]*\n([\s\S]*?)(?=2\.\s*POBLACI|2\.\s*CONTRIBUCI|$)/i);
-  const match2 = texto.match(/2\.\s*(?:POBLACI|CONTRIBUCI)[^\n]*\n([\s\S]*?)(?=3\.\s*COMPETENCIAS|3\.\s*RESULTADOS|$)/i);
-  const match3 = texto.match(/3\.\s*(?:COMPETENCIAS|RESULTADOS)[^\n]*\n([\s\S]*?)$/i);
+  const match1 = texto.match(/(?:^|\n)(?:##\s*)?(?:1\.\s*)?RESUMEN[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:2\.\s*)?(?:POBLACI|CONTRIBUCI)|$)/i);
+  const match2 = texto.match(/(?:^|\n)(?:##\s*)?(?:2\.\s*)?(?:POBLACI|CONTRIBUCI)[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:COMPETENCIAS|RESULTADOS)|$)/i);
+  const match3 = texto.match(/(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:COMPETENCIAS|RESULTADOS)[^\n]*\n([\s\S]*?)$/i);
 
   if (match1) resumen = match1[1].trim();
   if (match2) contribucion = match2[1].trim();
@@ -55,7 +107,11 @@ function parsearSeccionesComunitario(texto) {
     resumen = texto.trim();
   }
 
-  return { resumen, contribucion, resultados };
+  return {
+    resumen: limpiarTextoParaExcel(resumen),
+    contribucion: limpiarTextoParaExcel(contribucion),
+    resultados: limpiarTextoParaExcel(resultados)
+  };
 }
 
 export const asistenteIaService = {
@@ -203,7 +259,7 @@ Cita los requisitos exactos, límites de horas o nombres de formularios cuando c
     if (groq) {
       try {
         const prompt = `Actúa como asesor académico de la carrera Tecnología Superior en Desarrollo de Software de la ESFOT - EPN.
-Analiza la siguiente bitácora de actividades realizadas por un estudiante en sus Prácticas Laborales y genera un borrador formal estructurado para el Informe Oficial F_AA_119.
+Analiza la siguiente bitácora de actividades aprobadas realizadas por un estudiante en sus Prácticas Laborales y redacta el Informe Oficial F_AA_119.
 
 BITÁCORA DE ACTIVIDADES:
 ${detalleBitacoras}
@@ -219,15 +275,25 @@ MALLA CURRICULAR DE REFERENCIA (TSDS):
 - Desarrollo de Aplicaciones Móviles (TDSD514)
 - Tecnologías de Seguridad (TDSD532)
 
-DEBES GENERAR EN ESPAÑOL LAS SIGUIENTES 3 SECCIONES OBLIGATORIAS:
-1. ASIGNATURAS DE LA CARRERA Y TEMÁTICAS DE MAYOR UTILIDAD: (Selecciona de 2 a 4 asignaturas con sus códigos de la lista anterior y explica qué temas específicos fueron útiles para las tareas).
-2. PRINCIPALES ACTIVIDADES DESARROLLADAS: (Redacta un resumen técnico consolidado y formal de los desarrollos, arquitecturas o módulos implementados).
-3. HABILIDADES, DESTREZAS O CONOCIMIENTOS ADQUIRIDOS: (Describe las competencias técnicas, metodológicas y blandas adquiridas o fortalecidas).`;
+REGLAS DE FORMATO CRÍTICAS PARA HOJA DE EXCEL:
+- El resultado se inyectará directamente en una plantilla oficial de Excel.
+- ESTÁ ESTRICTAMENTE PROHIBIDO usar sintaxis de tablas Markdown (|---|---|), encabezados Markdown (### o ##), o negritas con asteriscos (**texto**).
+- Escribe texto formal continuo, párrafos limpios y viñetas con el punto (•).
+- Genera OBLIGATORIAMENTE las siguientes 3 secciones completas en español:
+
+1. ASIGNATURAS DE LA CARRERA Y TEMÁTICAS DE MAYOR UTILIDAD:
+(Selecciona de 2 a 4 asignaturas con sus códigos e indica en viñetas qué temáticas fueron aplicadas).
+
+2. PRINCIPALES ACTIVIDADES DESARROLLADAS:
+(Resume en 4 a 6 viñetas técnicas los módulos, desarrollos y tareas implementadas, sin listar día por día ni usar tablas).
+
+3. HABILIDADES, DESTREZAS O CONOCIMIENTOS ADQUIRIDOS:
+(Describe en 4 a 5 viñetas las competencias técnicas, metodológicas y blandas consolidadas durante la práctica).`;
 
         const completion = await groq.chat.completions.create({
           model: ENV.GROQ_MODEL || 'llama-3.3-70b-versatile',
           temperature: 0.3,
-          max_completion_tokens: 1000,
+          max_completion_tokens: 2200,
           messages: [{ role: 'user', content: prompt }]
         });
 
@@ -241,21 +307,27 @@ DEBES GENERAR EN ESPAÑOL LAS SIGUIENTES 3 SECCIONES OBLIGATORIAS:
     if (!textoGenerado) {
       // Síntesis curricular predeterminada basada en la malla de software
       textoGenerado = `1. ASIGNATURAS DE LA CARRERA Y TEMÁTICAS DE MAYOR UTILIDAD:
-- Desarrollo de Aplicaciones Web (TDSD414): Arquitectura de software cliente-servidor, desarrollo de APIs RESTful y gestión de middlewares.
-- Bases de Datos (TDSD343): Modelado de colecciones NoSQL, consultas indexadas y persistencia de datos.
-- Gestión de Proyectos de Software (TDSD333): Control de requerimientos, metodología ágil por sprints y documentación técnica.
+• Desarrollo de Aplicaciones Web (TDSD414): Arquitectura de software cliente-servidor, desarrollo de APIs RESTful y gestión de middlewares.
+• Bases de Datos (TDSD343): Modelado de colecciones NoSQL, consultas indexadas y persistencia de datos.
+• Gestión de Proyectos de Software (TDSD333): Control de requerimientos, metodología ágil por sprints y documentación técnica.
 
 2. PRINCIPALES ACTIVIDADES DESARROLLADAS:
 Durante el período de prácticas se ejecutaron las siguientes actividades técnicas:
-${actividadesAprobadas.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
+${actividadesAprobadas.slice(0, 5).map((a) => `• ${a.descripcion}`).join('\n')}
 
 3. HABILIDADES, DESTREZAS O CONOCIMIENTOS ADQUIRIDOS:
-- Implementación de patrones de diseño limpios y arquitectura modular.
-- Aseguramiento de calidad, control de acceso basado en roles (RBAC) y validación de esquemas de datos.
-- Trabajo en equipo, resolución autónoma de incidentes y redacción de informes técnicos.`;
+• Implementación de patrones de diseño limpios y arquitectura modular en Node.js.
+• Aseguramiento de calidad, control de acceso basado en roles (RBAC) y validación de esquemas de datos.
+• Trabajo en equipo, resolución autónoma de incidentes y redacción de informes técnicos.`;
     }
 
     const secciones = parsearSeccionesLaboral(textoGenerado);
+
+    const primerRegistro = actividadesAprobadas[0];
+    const horaEntrada = primerRegistro?.horaEntrada || '08:00';
+    const horaSalida = primerRegistro?.horaSalida || '16:30';
+    const horasDiarias = primerRegistro?.horas || 8;
+    const horasSemanales = Math.min(40, horasDiarias * 5);
 
     // Almacenar en la colección formularios_pendientes para permitir edición humana y descarga sin gastar tokens
     const formPendiente = await FormularioPendiente.findOneAndUpdate(
@@ -266,6 +338,9 @@ ${actividadesAprobadas.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
         modalidad: MODALIDADES.LABORAL,
         estado: 'borrador',
         $set: {
+          'horarioSemanal.horaInicio': horaEntrada,
+          'horarioSemanal.horaFin': horaSalida,
+          'horarioSemanal.horasSemanales': horasSemanales,
           'contenidoIa.asignaturasUtilidad': secciones.asignaturas,
           'contenidoIa.principalesActividades': secciones.actividades,
           'contenidoIa.habilidadesAdquiridas': secciones.habilidades,

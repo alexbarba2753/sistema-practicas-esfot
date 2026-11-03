@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { Usuario } from '../../infrastructure/database/models/index.js';
+import { Usuario, AulaVirtual } from '../../infrastructure/database/models/index.js';
 import { ROLES } from '../../domain/constants/practicasConstants.js';
 import { validarDatosUsuario } from '../../domain/utils/validarUsuario.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
@@ -112,11 +112,30 @@ export const authService = {
       { expiresIn: ENV.JWT_EXPIRES_IN }
     );
 
+    let aulasInfo = null;
+    if (usuario.rol === ROLES.ESTUDIANTE) {
+      const aulas = await AulaVirtual.find({ estudiante: usuario._id }).sort({ createdAt: -1 });
+      const aulaLaboral = aulas.find((a) => a.modalidad === 'laboral' && a.estado !== 'cerrada') || aulas.find((a) => a.modalidad === 'laboral');
+      const aulaComunitaria = aulas.find((a) => a.modalidad === 'comunitario' && a.estado !== 'cerrada') || aulas.find((a) => a.modalidad === 'comunitario');
+      aulasInfo = {
+        aulaLaboralId: aulaLaboral?._id || (aulas[0]?._id || null),
+        aulaComunitariaId: aulaComunitaria?._id || null,
+        totalAulas: aulas.length
+      };
+    } else if (usuario.rol === ROLES.DOCENTE) {
+      const aulas = await AulaVirtual.find({ docenteTutor: usuario._id }).sort({ createdAt: -1 });
+      aulasInfo = {
+        aulaId: aulas[0]?._id || null,
+        totalAulas: aulas.length
+      };
+    }
+
     return {
       success: true,
       message: 'Inicio de sesión exitoso',
       token,
-      usuario: toUsuarioDto(usuario)
+      usuario: toUsuarioDto(usuario),
+      aulas: aulasInfo
     };
   },
 

@@ -4,8 +4,22 @@ import ExcelJS from 'exceljs';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
 
 const TEMPLATES_DIR = path.join(process.cwd(), 'documentacion');
+const DESCARGAS_DIR = path.join(process.cwd(), 'archivos_descargados');
 const PLANTILLA_LABORAL = path.join(TEMPLATES_DIR, 'f_aa_119_informe_de_practicas_preprofesionales_1.xlsx');
 const PLANTILLA_COMUNITARIO = path.join(TEMPLATES_DIR, 'fcp_001a_informe_convalidacion_reconocimiento_pp.xlsx');
+
+function guardarCopiaLocal(filename, buffer) {
+  try {
+    if (!fs.existsSync(DESCARGAS_DIR)) {
+      fs.mkdirSync(DESCARGAS_DIR, { recursive: true });
+    }
+    const rutaDestino = path.join(DESCARGAS_DIR, filename);
+    fs.writeFileSync(rutaDestino, buffer);
+    console.log(`[excelService] Archivo generado y guardado localmente en: ${rutaDestino}`);
+  } catch (err) {
+    console.error(`[excelService] No se pudo guardar la copia local:`, err.message);
+  }
+}
 
 export const excelService = {
   /**
@@ -79,6 +93,8 @@ export const excelService = {
     const safeCedula = (estudiante?.cedula || 'ESTUDIANTE').replace(/[^a-zA-Z0-9_-]/g, '');
     const filename = `F_AA_119_Informe_Practicas_Laborales_${safeCedula}.xlsx`;
 
+    guardarCopiaLocal(filename, buffer);
+
     return { buffer, filename };
   },
 
@@ -145,6 +161,8 @@ export const excelService = {
     const buffer = await workbook.xlsx.writeBuffer();
     const safeCedula = (estudiante?.cedula || 'ESTUDIANTE').replace(/[^a-zA-Z0-9_-]/g, '');
     const filename = `FCP_001A_Informe_Convalidacion_Comunitario_${safeCedula}.xlsx`;
+
+    guardarCopiaLocal(filename, buffer);
 
     return { buffer, filename };
   }

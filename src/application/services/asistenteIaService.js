@@ -1,6 +1,12 @@
 import Groq from 'groq-sdk';
 import { ENV } from '../../infrastructure/config/env.js';
-import { FuenteInstitucional, AulaVirtual, ActividadLaboral, ActividadComunitaria } from '../../infrastructure/database/models/index.js';
+import {
+  FuenteInstitucional,
+  AulaVirtual,
+  ActividadLaboral,
+  ActividadComunitaria,
+  FormularioPendiente
+} from '../../infrastructure/database/models/index.js';
 import { ESTADOS_ACTIVIDAD, MODALIDADES } from '../../domain/constants/practicasConstants.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
 
@@ -11,6 +17,46 @@ const getGroqClient = () => {
   }
   return groqClient;
 };
+
+function parsearSeccionesLaboral(texto) {
+  let asignaturas = '';
+  let actividades = '';
+  let habilidades = '';
+
+  const match1 = texto.match(/1\.\s*ASIGNATURAS[^\n]*\n([\s\S]*?)(?=2\.\s*PRINCIPALES|$)/i);
+  const match2 = texto.match(/2\.\s*PRINCIPALES[^\n]*\n([\s\S]*?)(?=3\.\s*HABILIDADES|$)/i);
+  const match3 = texto.match(/3\.\s*HABILIDADES[^\n]*\n([\s\S]*?)$/i);
+
+  if (match1) asignaturas = match1[1].trim();
+  if (match2) actividades = match2[1].trim();
+  if (match3) habilidades = match3[1].trim();
+
+  if (!actividades && !asignaturas) {
+    actividades = texto.trim();
+  }
+
+  return { asignaturas, actividades, habilidades };
+}
+
+function parsearSeccionesComunitario(texto) {
+  let resumen = '';
+  let contribucion = '';
+  let resultados = '';
+
+  const match1 = texto.match(/1\.\s*RESUMEN[^\n]*\n([\s\S]*?)(?=2\.\s*POBLACI|2\.\s*CONTRIBUCI|$)/i);
+  const match2 = texto.match(/2\.\s*(?:POBLACI|CONTRIBUCI)[^\n]*\n([\s\S]*?)(?=3\.\s*COMPETENCIAS|3\.\s*RESULTADOS|$)/i);
+  const match3 = texto.match(/3\.\s*(?:COMPETENCIAS|RESULTADOS)[^\n]*\n([\s\S]*?)$/i);
+
+  if (match1) resumen = match1[1].trim();
+  if (match2) contribucion = match2[1].trim();
+  if (match3) resultados = match3[1].trim();
+
+  if (!resumen && !contribucion) {
+    resumen = texto.trim();
+  }
+
+  return { resumen, contribucion, resultados };
+}
 
 export const asistenteIaService = {
   /**
@@ -201,7 +247,7 @@ DEBES GENERAR EN ESPAÑOL LAS SIGUIENTES 3 SECCIONES OBLIGATORIAS:
 
 2. PRINCIPALES ACTIVIDADES DESARROLLADAS:
 Durante el período de prácticas se ejecutaron las siguientes actividades técnicas:
-${totalActividades.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
+${actividadesAprobadas.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
 
 3. HABILIDADES, DESTREZAS O CONOCIMIENTOS ADQUIRIDOS:
 - Implementación de patrones de diseño limpios y arquitectura modular.
@@ -209,10 +255,36 @@ ${totalActividades.slice(0, 5).map((a) => `- ${a.descripcion}`).join('\n')}
 - Trabajo en equipo, resolución autónoma de incidentes y redacción de informes técnicos.`;
     }
 
+    const secciones = parsearSeccionesLaboral(textoGenerado);
+
+    // Almacenar en la colección formularios_pendientes para permitir edición humana y descarga sin gastar tokens
+    const formPendiente = await FormularioPendiente.findOneAndUpdate(
+      { aulaVirtual: aulaId },
+      {
+        aulaVirtual: aulaId,
+        estudiante: estudianteId,
+        modalidad: MODALIDADES.LABORAL,
+        estado: 'borrador',
+        $set: {
+          'contenidoIa.asignaturasUtilidad': secciones.asignaturas,
+          'contenidoIa.principalesActividades': secciones.actividades,
+          'contenidoIa.habilidadesAdquiridas': secciones.habilidades,
+          'contenidoIa.observacionesTemas': 'Cumplimiento satisfactorio del plan formativo institucional.',
+          'contenidoIa.informeGeneradoTexto': textoGenerado,
+          totalHoras: horasAprobadas,
+          fechaGeneracionIa: new Date()
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     return {
       success: true,
       aulaId,
+      formularioPendienteId: formPendiente._id,
       totalActividadesAnalizadas: actividadesAprobadas.length,
+      horasAprobadas,
+      seccionesParseadas: secciones,
       informeGenerado: textoGenerado
     };
   },
@@ -294,10 +366,36 @@ Se brindó atención y soporte a un estimado de ${totalBeneficiarios} beneficiar
 - Ética profesional y responsabilidad institucional politécnica.`;
     }
 
+    const secciones = parsearSeccionesComunitario(textoGenerado);
+
+    // Almacenar en la colección formularios_pendientes
+    const formPendiente = await FormularioPendiente.findOneAndUpdate(
+      { aulaVirtual: aulaId },
+      {
+        aulaVirtual: aulaId,
+        estudiante: estudianteId,
+        modalidad: MODALIDADES.COMUNITARIO,
+        estado: 'borrador',
+        $set: {
+          'contenidoIa.resumenActividades': secciones.resumen,
+          'contenidoIa.contribucionConocimientos': secciones.contribucion,
+          'contenidoIa.resultadosAprendizaje': secciones.resultados,
+          'contenidoIa.asignaturasMalla': 'Desarrollo de Software, Sistemas Operativos y Redes',
+          'contenidoIa.informeGeneradoTexto': textoGenerado,
+          totalHoras: horasAprobadas,
+          fechaGeneracionIa: new Date()
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     return {
       success: true,
       aulaId,
+      formularioPendienteId: formPendiente._id,
       totalActividadesAnalizadas: actividadesAprobadas.length,
+      horasAprobadas,
+      seccionesParseadas: secciones,
       informeGenerado: textoGenerado
     };
   }

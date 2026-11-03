@@ -106,5 +106,66 @@ export const estudianteController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async obtenerFormularioPendiente(req, res, next) {
+    try {
+      const resultado = await expedienteService.obtenerFormularioPendiente(
+        req.params.aulaId,
+        req.usuario._id
+      );
+      res.status(200).json(resultado);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async actualizarFormularioPendiente(req, res, next) {
+    try {
+      const resultado = await expedienteService.actualizarFormularioPendiente(
+        req.params.aulaId,
+        req.usuario._id,
+        req.body
+      );
+      res.status(200).json(resultado);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async descargarInformeLaboralExcel(req, res, next) {
+    try {
+      const { buffer, filename } = await expedienteService.descargarInformeExcel(
+        req.params.aulaId,
+        req.usuario._id,
+        'laboral'
+      );
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async descargarInformeComunitarioExcel(req, res, next) {
+    try {
+      const { buffer, filename } = await expedienteService.descargarInformeExcel(
+        req.params.aulaId,
+        req.usuario._id,
+        'comunitario'
+      );
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(buffer);
+    } catch (error) {
+      next(error);
+    }
   }
 };

@@ -4,3 +4,4 @@ export { ActividadLaboral } from './ActividadLaboral.js';
 export { ActividadComunitaria } from './ActividadComunitaria.js';
 export { FuenteInstitucional } from './FuenteInstitucional.js';
 export { FormularioAprobacion } from './FormularioAprobacion.js';
+export { FormularioPendiente } from './FormularioPendiente.js';

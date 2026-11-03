@@ -1,7 +1,8 @@
-import { AulaVirtual, FormularioAprobacion } from '../../infrastructure/database/models/index.js';
-import { ESTADOS_AULA } from '../../domain/constants/practicasConstants.js';
+import { AulaVirtual, FormularioAprobacion, FormularioPendiente, Usuario } from '../../infrastructure/database/models/index.js';
+import { ESTADOS_AULA, MODALIDADES } from '../../domain/constants/practicasConstants.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
 import { actividadService } from './actividadService.js';
+import { excelService } from './excelService.js';
 import { toAulaVirtualDto } from '../dtos/index.js';
 
 export const expedienteService = {
@@ -183,6 +184,12 @@ export const expedienteService = {
     }
     await formulario.save();
 
+    // Actualizar formulario pendiente a estado aprobado si existe
+    await FormularioPendiente.findOneAndUpdate(
+      { aulaVirtual: aulaId },
+      { estado: 'aprobado' }
+    );
+
     return {
       success: true,
       message: 'Proceso de prácticas aprobado y cerrado formalmente por el docente tutor',
@@ -192,5 +199,132 @@ export const expedienteService = {
       estadoAula: aula.estado,
       formularioAprobacionId: formulario._id
     };
+  },
+
+  /**
+   * Consulta el borrador de formulario pendiente generado por IA para un aula
+   */
+  async obtenerFormularioPendiente(aulaId, estudianteId) {
+    const aula = await AulaVirtual.findById(aulaId);
+    if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
+
+    if (aula.estudiante?.toString() !== estudianteId.toString()) {
+      throw errorHttp('No tienes permiso para consultar el formulario de esta aula', 403);
+    }
+
+    const formPendiente = await FormularioPendiente.findOne({
+      aulaVirtual: aulaId,
+      estudiante: estudianteId
+    });
+
+    if (!formPendiente) {
+      throw errorHttp(
+        'Aún no existe un borrador de formulario pendiente para esta aula. Primero debe generar el reporte con el asistente IA.',
+        404
+      );
+    }
+
+    return {
+      success: true,
+      formularioPendiente: formPendiente
+    };
+  },
+
+  /**
+   * Permite al estudiante editar manualmente los comentarios o datos del borrador sin gastar tokens de IA
+   */
+  async actualizarFormularioPendiente(aulaId, estudianteId, datosActualizados = {}) {
+    const aula = await AulaVirtual.findById(aulaId);
+    if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
+
+    if (aula.estudiante?.toString() !== estudianteId.toString()) {
+      throw errorHttp('No tienes permiso para editar el formulario de esta aula', 403);
+    }
+
+    const formPendiente = await FormularioPendiente.findOne({
+      aulaVirtual: aulaId,
+      estudiante: estudianteId
+    });
+
+    if (!formPendiente) {
+      throw errorHttp(
+        'No se encontró el borrador del formulario. Primero debe generarlo mediante el asistente IA.',
+        404
+      );
+    }
+
+    if (formPendiente.estado === 'aprobado') {
+      throw errorHttp('Este formulario ya ha sido aprobado formalmente y no puede ser modificado.', 400);
+    }
+
+    // Actualizar campos de entidad receptora si fueron provistos
+    if (datosActualizados.entidadReceptora && typeof datosActualizados.entidadReceptora === 'object') {
+      Object.assign(formPendiente.entidadReceptora, datosActualizados.entidadReceptora);
+    }
+
+    // Actualizar secciones de contenido IA si fueron provistos
+    if (datosActualizados.contenidoIa && typeof datosActualizados.contenidoIa === 'object') {
+      Object.assign(formPendiente.contenidoIa, datosActualizados.contenidoIa);
+    }
+
+    formPendiente.ultimaEdicionEstudiante = new Date();
+    await formPendiente.save();
+
+    return {
+      success: true,
+      message: 'Borrador de formulario actualizado exitosamente sin consumo de tokens de IA',
+      formularioPendiente: formPendiente
+    };
+  },
+
+  /**
+   * Genera y transmite en streaming el archivo Excel inyectando los datos de la colección formularios_pendientes
+   */
+  async descargarInformeExcel(aulaId, estudianteId, modalidadEsperada) {
+    const aula = await AulaVirtual.findById(aulaId)
+      .populate('estudiante', 'nombres apellidos cedula correo telefono')
+      .populate('docenteTutor', 'nombres apellidos cedula correo telefono');
+
+    if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
+
+    if (aula.estudiante?._id?.toString() !== estudianteId.toString()) {
+      throw errorHttp('No tienes permiso para descargar el formulario de esta aula', 403);
+    }
+
+    if (modalidadEsperada && aula.modalidad !== modalidadEsperada) {
+      throw errorHttp(
+        `Esta aula virtual pertenece a la modalidad de ${aula.modalidad}, no a ${modalidadEsperada}`,
+        400
+      );
+    }
+
+    // Validación estricta: Si la IA no ha generado la información en formularios_pendientes, se bloquea la descarga
+    const formPendiente = await FormularioPendiente.findOne({
+      aulaVirtual: aulaId,
+      estudiante: estudianteId
+    });
+
+    if (!formPendiente) {
+      throw errorHttp(
+        'Primero debe generar el borrador asistido por IA antes de descargar el formulario Excel.',
+        400
+      );
+    }
+
+    if (aula.modalidad === MODALIDADES.LABORAL) {
+      return await excelService.generarExcelInformeLaboral({
+        aula,
+        estudiante: aula.estudiante,
+        docente: aula.docenteTutor,
+        formularioPendiente: formPendiente
+      });
+    } else {
+      return await excelService.generarExcelInformeComunitario({
+        aula,
+        estudiante: aula.estudiante,
+        docente: aula.docenteTutor,
+        formularioPendiente: formPendiente
+      });
+    }
   }
 };

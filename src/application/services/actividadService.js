@@ -1,6 +1,7 @@
 import { AulaVirtual, ActividadLaboral, ActividadComunitaria } from '../../infrastructure/database/models/index.js';
 import { ESTADOS_ACTIVIDAD, ESTADOS_AULA, MODALIDADES } from '../../domain/constants/practicasConstants.js';
 import { errorHttp } from '../../domain/utils/errorHttp.js';
+import { validarJornadaLaboral, validarActividadComunitariaDatos } from '../../domain/utils/validarActividad.js';
 import {
   toActividadLaboralDto,
   toActividadLaboralListDto,
@@ -52,7 +53,7 @@ export const actividadService = {
   },
 
   /**
-   * Registra una jornada laboral diaria (máximo 8 horas)
+   * Registra una jornada laboral diaria (máximo 8 horas) con validaciones estrictas (HU-011)
    */
   async crearActividadLaboral(estudianteId, aulaId, datos) {
     const aula = await AulaVirtual.findById(aulaId);
@@ -74,25 +75,36 @@ export const actividadService = {
       throw errorHttp('El expediente ya fue entregado a revisión formal; no se pueden añadir más actividades', 400);
     }
 
-    const { fecha, horaEntrada, horaSalida, horas, descripcion } = datos;
+    const resumenPrevio = await this.calcularHorasAula(aulaId);
+    const datosValidados = validarJornadaLaboral(datos, aula, resumenPrevio);
 
-    if (!fecha || !horaEntrada || !horaSalida || !horas || !descripcion) {
-      throw errorHttp('Fecha, hora de entrada, hora de salida, número de horas y descripción técnica son obligatorios', 400);
-    }
+    // Prevención de duplicidad: Verificar que no exista otra bitácora en la misma fecha calendario
+    const anio = datosValidados.fechaObj.getUTCFullYear();
+    const mes = datosValidados.fechaObj.getUTCMonth();
+    const dia = datosValidados.fechaObj.getUTCDate();
+    const inicioDia = new Date(Date.UTC(anio, mes, dia, 0, 0, 0, 0));
+    const finDia = new Date(Date.UTC(anio, mes, dia, 23, 59, 59, 999));
 
-    const numHoras = Number(horas);
-    if (isNaN(numHoras) || numHoras <= 0 || numHoras > 8) {
-      throw errorHttp('El número de horas diarias debe ser un valor numérico entre 0.5 y 8 horas', 400);
+    const bitacoraExistente = await ActividadLaboral.findOne({
+      aulaVirtual: aulaId,
+      fecha: { $gte: inicioDia, $lte: finDia }
+    });
+
+    if (bitacoraExistente) {
+      throw errorHttp(
+        `Ya existe una jornada laboral registrada para la fecha ${datosValidados.fechaObj.toISOString().split('T')[0]}. No se permiten registros duplicados en el mismo día.`,
+        400
+      );
     }
 
     const nuevaActividad = new ActividadLaboral({
       estudiante: estudianteId,
       aulaVirtual: aulaId,
-      fecha: new Date(fecha),
-      horaEntrada: horaEntrada.trim(),
-      horaSalida: horaSalida.trim(),
-      horas: numHoras,
-      descripcion: descripcion.trim(),
+      fecha: datosValidados.fechaObj,
+      horaEntrada: datosValidados.entradaTrim,
+      horaSalida: datosValidados.salidaTrim,
+      horas: datosValidados.numHoras,
+      descripcion: datosValidados.descripcionTrim,
       estadoAprobacion: ESTADOS_ACTIVIDAD.PENDIENTE
     });
 
@@ -168,7 +180,7 @@ export const actividadService = {
   },
 
   /**
-   * Registra actividades o certificados de Servicio Comunitario
+   * Registra actividades o certificados de Servicio Comunitario con validaciones (HU-013)
    */
   async crearActividadComunitaria(estudianteId, aulaId, datos) {
     const aula = await AulaVirtual.findById(aulaId);
@@ -190,26 +202,18 @@ export const actividadService = {
       throw errorHttp('El expediente ya fue entregado a revisión formal; no se pueden añadir más actividades', 400);
     }
 
-    const { fecha, horas, comunidadOInstitucion, beneficiariosAproximados, descripcion, archivoEvidenciaUrl } = datos;
-
-    if (!horas || !comunidadOInstitucion || !descripcion) {
-      throw errorHttp('Horas cumplidas, institución o comunidad beneficiaria y descripción son obligatorios', 400);
-    }
-
-    const numHoras = Number(horas);
-    if (isNaN(numHoras) || numHoras <= 0 || numHoras > 96) {
-      throw errorHttp('El número de horas debe ser un valor positivo y no exceder las 96 horas reglamentarias', 400);
-    }
+    const resumenPrevio = await this.calcularHorasAula(aulaId);
+    const datosValidados = validarActividadComunitariaDatos(datos, aula, resumenPrevio);
 
     const nuevaActividad = new ActividadComunitaria({
       estudiante: estudianteId,
       aulaVirtual: aulaId,
-      fecha: fecha ? new Date(fecha) : new Date(),
-      horas: numHoras,
-      comunidadOInstitucion: comunidadOInstitucion.trim(),
-      beneficiariosAproximados: beneficiariosAproximados ? Number(beneficiariosAproximados) : 0,
-      descripcion: descripcion.trim(),
-      archivoEvidenciaUrl: archivoEvidenciaUrl ? archivoEvidenciaUrl.trim() : '',
+      fecha: datosValidados.fechaObj,
+      horas: datosValidados.numHoras,
+      comunidadOInstitucion: datosValidados.institucionTrim,
+      beneficiariosAproximados: datosValidados.beneficiariosNum,
+      descripcion: datosValidados.descripcionTrim,
+      archivoEvidenciaUrl: datos.archivoEvidenciaUrl ? String(datos.archivoEvidenciaUrl).trim() : '',
       estadoAprobacion: ESTADOS_ACTIVIDAD.PENDIENTE
     });
 

@@ -172,12 +172,18 @@ export const excelService = {
     const entidad = formularioPendiente?.entidadReceptora || {};
     const contenido = formularioPendiente?.contenidoIa || {};
 
+    // 2. ACTIVIDADES PARA LAS QUE SOLICITA LA CONVALIDACIÓN (Actividades solidarias y de cooperación)
+    worksheet.getCell('F18').value = 'X';
+
     // 3. DATOS DEL ESTUDIANTE
     worksheet.getCell('C26').value = nombreCompletoEstudiante;
     worksheet.getCell('C27').value = estudiante?.cedula || '';
     worksheet.getCell('C28').value = estudiante?.correo || '';
     worksheet.getCell('H28').value = estudiante?.telefono || '';
     worksheet.getCell('J28').value = estudiante?.telefono || '';
+
+    // 4. DOCUMENTACIÓN DE SOPORTE ADJUNTA
+    worksheet.getCell('A31').value = 'Bitácoras aprobadas en plataforma digital, registro de beneficiarios comunitarios y memoria de impacto social.';
 
     // 5. INFORMACIÓN DE LA INSTITUCIÓN
     if (entidad.razonSocial) worksheet.getCell('C34').value = entidad.razonSocial;
@@ -188,7 +194,7 @@ export const excelService = {
     if (entidad.correo) worksheet.getCell('C38').value = entidad.correo;
     if (entidad.tipoEntidad) worksheet.getCell('C39').value = entidad.tipoEntidad;
 
-    // 6. ACTIVIDADES REALIZADAS
+    // 6. ACTIVIDADES REALIZADAS (Celdas maestras combinadas A48, A50, A52, A54)
     if (contenido.resumenActividades) {
       const cell = worksheet.getCell('A48');
       cell.value = limpiarTextoParaExcel(contenido.resumenActividades);
@@ -228,8 +234,13 @@ export const excelService = {
     worksheet.getCell('I63').value = estudiante?.cedula || '';
     worksheet.getCell('B65').value = new Date().toLocaleDateString('es-EC');
 
-    // 9. TUTOR EPN
+    // 9. INFORME DEL TUTOR EPN
     if (nombreCompletoDocente) worksheet.getCell('C68').value = nombreCompletoDocente;
+    worksheet.getCell('H68').value = 'ESFOT';
+    worksheet.getCell('H69').value = 'X';
+    worksheet.getCell('H70').value = 'X';
+    worksheet.getCell('H71').value = 'X';
+    worksheet.getCell('F74').value = formularioPendiente?.totalHoras || aula?.horasRequeridas || 96;
 
     const buffer = await workbook.xlsx.writeBuffer();
     const safeCedula = (estudiante?.cedula || 'ESTUDIANTE').replace(/[^a-zA-Z0-9_-]/g, '');

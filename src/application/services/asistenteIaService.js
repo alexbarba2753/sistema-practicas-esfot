@@ -94,23 +94,37 @@ function parsearSeccionesComunitario(texto) {
   let resumen = '';
   let contribucion = '';
   let resultados = '';
+  let asignaturas = '';
 
-  const match1 = texto.match(/(?:^|\n)(?:##\s*)?(?:1\.\s*)?RESUMEN[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:2\.\s*)?(?:POBLACI|CONTRIBUCI)|$)/i);
-  const match2 = texto.match(/(?:^|\n)(?:##\s*)?(?:2\.\s*)?(?:POBLACI|CONTRIBUCI)[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:COMPETENCIAS|RESULTADOS)|$)/i);
-  const match3 = texto.match(/(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:COMPETENCIAS|RESULTADOS)[^\n]*\n([\s\S]*?)$/i);
+  const match1 = texto.match(/(?:^|\n)(?:##\s*)?(?:1\.\s*)?(?:BREVE\s*)?RESUMEN[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:2\.\s*)?(?:CONTRIBUCI|APLICACI)|$)/i);
+  const match2 = texto.match(/(?:^|\n)(?:##\s*)?(?:2\.\s*)?(?:CONTRIBUCI|APLICACI)[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:RESULTADOS|COMPETENCIAS)|$)/i);
+  const match3 = texto.match(/(?:^|\n)(?:##\s*)?(?:3\.\s*)?(?:RESULTADOS|COMPETENCIAS)[^\n]*\n([\s\S]*?)(?=(?:^|\n)(?:##\s*)?(?:4\.\s*)?(?:ASIGNATURAS|MALLA)|$)/i);
+  const match4 = texto.match(/(?:^|\n)(?:##\s*)?(?:4\.\s*)?(?:ASIGNATURAS|MALLA)[^\n]*\n([\s\S]*?)$/i);
 
   if (match1) resumen = match1[1].trim();
   if (match2) contribucion = match2[1].trim();
   if (match3) resultados = match3[1].trim();
+  if (match4) asignaturas = match4[1].trim();
 
+  // Fallbacks elegantes si alguna sección no vino
   if (!resumen && !contribucion) {
     resumen = texto.trim();
+  }
+  if (!contribucion) {
+    contribucion = `• Aplicación práctica de conceptos de arquitectura de software y alfabetización digital en sectores comunitarios.\n• Fortalecimiento de la comunicación asertiva, paciencia didáctica y empatía para la transferencia tecnológica a diversos grupos de edad.\n• Capacidad de diagnóstico, mantenimiento preventivo de equipos y resolución autónoma de problemas técnicos.`;
+  }
+  if (!resultados) {
+    resultados = `• Compromiso ético y responsabilidad social con las comunidades y sectores vulnerables.\n• Conciencia del impacto de la tecnología en la inclusión digital y educativa.\n• Trabajo colaborativo, liderazgo participativo y vocación de servicio ciudadano politécnico.`;
+  }
+  if (!asignaturas) {
+    asignaturas = `• Programación y Algoritmos: Estructuración lógica de talleres y fundamentos de desarrollo.\n• Bases de Datos: Organización de inventarios de productos y catálogos comunitarios.\n• Desarrollo Web y Redes: Configuración de redes locales, mantenimiento de laboratorios y presencia digital básica.`;
   }
 
   return {
     resumen: limpiarTextoParaExcel(resumen),
     contribucion: limpiarTextoParaExcel(contribucion),
-    resultados: limpiarTextoParaExcel(resultados)
+    resultados: limpiarTextoParaExcel(resultados),
+    asignaturas: limpiarTextoParaExcel(asignaturas)
   };
 }
 
@@ -402,21 +416,42 @@ ${actividadesAprobadas.slice(0, 5).map((a) => `• ${a.descripcion}`).join('\n')
 
     if (groq) {
       try {
-        const prompt = `Actúa como coordinador de Vinculación y Servicio Comunitario de la ESFOT - EPN.
-A partir de las siguientes actividades comunitarias registradas por un estudiante, redacta la memoria de impacto social para el expediente de culminación:
+        const prompt = `Actúa como asesor académico y coordinador de Vinculación y Servicio Comunitario de la Escuela de Formación de Tecnólogos (ESFOT) de la Escuela Politécnica Nacional (EPN).
+A partir de la siguiente bitácora de actividades comunitarias aprobadas (96 horas reglamentarias), redacta el Informe Oficial FCP_001A para la convalidación y reconocimiento de Servicio Comunitario.
 
-ACTIVIDADES REPORTADAS:
+ACTIVIDADES REALIZADAS:
 ${detalle}
 
-ESTRUCTURA EL INFORME CON:
-1. RESUMEN EJECUTIVO DE ACTIVIDADES SOLIDARIAS Y DE COOPERACIÓN.
-2. POBLACIÓN BENEFICIARIA E IMPACTO SOCIAL LOGRADO.
-3. COMPETENCIAS CIUDADANAS, ÉTICAS Y SOCIALES DESARROLLADAS.`;
+MALLA CURRICULAR DE REFERENCIA (TSDS):
+- Programación y Algoritmos
+- Bases de Datos
+- Desarrollo de Aplicaciones Web
+- Redes y Conectividad
+- Tecnologías de Seguridad
+- Formación y Ética Social
+
+REGLAS DE FORMATO CRÍTICAS PARA HOJA DE EXCEL:
+- El resultado se inyectará directamente en una plantilla oficial de Excel.
+- ESTÁ ESTRICTAMENTE PROHIBIDO usar sintaxis de tablas Markdown (|---|---|), encabezados Markdown (### o ##), o negritas con asteriscos (**texto**).
+- Escribe texto formal continuo, párrafos limpios y viñetas con el punto (•).
+- Genera OBLIGATORIAMENTE las siguientes 4 secciones completas en español:
+
+1. BREVE RESUMEN DE LAS ACTIVIDADES REALIZADAS:
+(Sintetiza en 4 a 6 viñetas limpias las intervenciones, instituciones beneficiarias, talleres y labores tecnológicas desarrolladas).
+
+2. CONTRIBUCION A LA APLICACION DE CONOCIMIENTOS Y DESARROLLO DE HABILIDADES:
+(Explica en 3 a 5 viñetas cómo el estudiante aplicó sus conocimientos de desarrollo de software y qué habilidades prácticas fortaleció al interactuar con las comunidades).
+
+3. RESULTADOS DE APRENDIZAJE DEL PERFIL DE EGRESO:
+(Detalla en 3 a 4 viñetas las competencias cívicas, ciudadanas, éticas y de responsabilidad social consolidadas).
+
+4. ASIGNATURAS DE LA MALLA CURRICULAR RELACIONADAS:
+(Lista de 2 a 4 asignaturas aplicadas con viñetas descriptivas).`;
 
         const completion = await groq.chat.completions.create({
           model: ENV.GROQ_MODEL || 'llama-3.3-70b-versatile',
           temperature: 0.3,
-          max_completion_tokens: 900,
+          max_completion_tokens: 2200,
           messages: [{ role: 'user', content: prompt }]
         });
 
@@ -428,17 +463,24 @@ ESTRUCTURA EL INFORME CON:
 
     if (!textoGenerado) {
       const totalBeneficiarios = actividadesAprobadas.reduce((acc, a) => acc + (a.beneficiariosAproximados || 0), 0);
-      textoGenerado = `1. RESUMEN EJECUTIVO DE ACTIVIDADES SOLIDARIAS Y DE COOPERACIÓN:
-Se cumplieron actividades orientadas al fortalecimiento comunitario e institucional:
-${actividadesAprobadas.map((a) => `- ${a.comunidadOInstitucion}: ${a.descripcion} (${a.horas} horas)`).join('\n')}
+      textoGenerado = `1. BREVE RESUMEN DE LAS ACTIVIDADES REALIZADAS:
+Se cumplieron actividades orientadas al fortalecimiento comunitario e institucional (${totalBeneficiarios} beneficiarios estimados):
+${actividadesAprobadas.map((a) => `• ${a.comunidadOInstitucion}: ${a.descripcion} (${a.horas} horas)`).join('\n')}
 
-2. POBLACIÓN BENEFICIARIA E IMPACTO SOCIAL LOGRADO:
-Se brindó atención y soporte a un estimado de ${totalBeneficiarios} beneficiarios directos e indirectos, facilitando el acceso a herramientas digitales y procesos colaborativos.
+2. CONTRIBUCION A LA APLICACION DE CONOCIMIENTOS Y DESARROLLO DE HABILIDADES:
+• Aplicación de competencias técnicas en entornos comunitarios para resolver necesidades de inclusión digital.
+• Fortalecimiento de la comunicación pedagógica y empatía con usuarios no técnicos.
+• Gestión y diagnóstico ágil en el mantenimiento preventivo y configuración de entornos tecnológicos.
 
-3. COMPETENCIAS CIUDADANAS, ÉTICAS Y SOCIALES DESARROLLADAS:
-- Compromiso social y vocación de servicio con sectores prioritarios.
-- Comunicación asertiva y empatía en la transferencia de conocimientos tecnológicos.
-- Ética profesional y responsabilidad institucional politécnica.`;
+3. RESULTADOS DE APRENDIZAJE DEL PERFIL DE EGRESO:
+• Compromiso ético y responsabilidad social con las comunidades y sectores vulnerables.
+• Conciencia del rol del desarrollo de software en la superación de la brecha digital.
+• Trabajo en equipo, proactividad institucional y vocación de servicio ciudadano.
+
+4. ASIGNATURAS DE LA MALLA CURRICULAR RELACIONADAS:
+• Programación y Algoritmos: Estructuración lógica de talleres y fundamentos de desarrollo.
+• Bases de Datos: Organización de inventarios de productos y catálogos comunitarios.
+• Desarrollo Web y Redes: Mantenimiento de salas de cómputo, redes locales e inclusión digital.`;
     }
 
     const secciones = parsearSeccionesComunitario(textoGenerado);
@@ -455,7 +497,7 @@ Se brindó atención y soporte a un estimado de ${totalBeneficiarios} beneficiar
           'contenidoIa.resumenActividades': secciones.resumen,
           'contenidoIa.contribucionConocimientos': secciones.contribucion,
           'contenidoIa.resultadosAprendizaje': secciones.resultados,
-          'contenidoIa.asignaturasMalla': 'Desarrollo de Software, Sistemas Operativos y Redes',
+          'contenidoIa.asignaturasMalla': secciones.asignaturas,
           'contenidoIa.informeGeneradoTexto': textoGenerado,
           totalHoras: horasAprobadas,
           fechaGeneracionIa: new Date()

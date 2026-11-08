@@ -148,6 +148,14 @@ export const expedienteService = {
     const aula = await AulaVirtual.findOne({ _id: aulaId, docenteTutor: docenteId });
     if (!aula) throw errorHttp('Aula virtual no encontrada o no asignada a este docente tutor', 404);
 
+    if (aula.estado === ESTADOS_AULA.CERRADA) {
+      throw errorHttp('Esta aula virtual ya fue cerrada formalmente con anterioridad', 400);
+    }
+
+    if (!aula.expedienteEntregado) {
+      throw errorHttp('El estudiante aún no ha entregado formalmente el expediente para revisión y cierre', 400);
+    }
+
     const resumen = await actividadService.calcularHorasAula(aulaId);
 
     if (resumen.horasAprobadas < aula.horasRequeridas) {
@@ -156,6 +164,9 @@ export const expedienteService = {
         400
       );
     }
+
+    const dictamenFinal = datos.dictamen === 'No Aprobado' ? 'No Aprobado' : 'Aprobado';
+    const estadoFormulario = dictamenFinal === 'Aprobado' ? 'aprobado' : 'rechazado';
 
     // Cerrar aula virtual
     aula.estado = ESTADOS_AULA.CERRADA;
@@ -171,14 +182,17 @@ export const expedienteService = {
         modalidad: aula.modalidad,
         horasCompletadas: resumen.horasAprobadas,
         horasRequeridas: aula.horasRequeridas,
-        dictamen: 'Aprobado',
-        estado: 'aprobado',
-        observacionesFinales: datos.observacionesFinales || 'Prácticas culminadas satisfactoriamente con 100% de horas aprobadas'
+        dictamen: dictamenFinal,
+        estado: estadoFormulario,
+        calificacionTutor: datos.calificacionTutor !== undefined ? Number(datos.calificacionTutor) : null,
+        observacionesFinales: datos.observacionesFinales || 'Prácticas culminadas satisfactoriamente con 100% de horas aprobadas',
+        fechaEmision: new Date()
       });
     } else {
       formulario.horasCompletadas = resumen.horasAprobadas;
-      formulario.dictamen = 'Aprobado';
-      formulario.estado = 'aprobado';
+      formulario.dictamen = dictamenFinal;
+      formulario.estado = estadoFormulario;
+      if (datos.calificacionTutor !== undefined) formulario.calificacionTutor = Number(datos.calificacionTutor);
       formulario.observacionesFinales = datos.observacionesFinales || 'Prácticas culminadas satisfactoriamente con 100% de horas aprobadas';
       formulario.fechaEmision = new Date();
     }
@@ -192,8 +206,8 @@ export const expedienteService = {
 
     return {
       success: true,
-      message: 'Proceso de prácticas aprobado y cerrado formalmente por el docente tutor',
-      dictamen: 'Aprobado',
+      message: `Proceso de prácticas evaluado (${dictamenFinal}) y aula virtual cerrada formalmente por el docente tutor`,
+      dictamen: dictamenFinal,
       horasAprobadas: resumen.horasAprobadas,
       horasRequeridas: aula.horasRequeridas,
       estadoAula: aula.estado,
@@ -202,19 +216,21 @@ export const expedienteService = {
   },
 
   /**
-   * Consulta el borrador de formulario pendiente generado por IA para un aula
+   * Consulta el borrador de formulario pendiente generado por IA para un aula (Estudiante o Docente Tutor)
    */
-  async obtenerFormularioPendiente(aulaId, estudianteId) {
+  async obtenerFormularioPendiente(aulaId, usuarioId) {
     const aula = await AulaVirtual.findById(aulaId);
     if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
 
-    if (aula.estudiante?.toString() !== estudianteId.toString()) {
+    const esEstudiante = aula.estudiante?.toString() === usuarioId.toString();
+    const esDocente = aula.docenteTutor?.toString() === usuarioId.toString();
+
+    if (!esEstudiante && !esDocente) {
       throw errorHttp('No tienes permiso para consultar el formulario de esta aula', 403);
     }
 
     const formPendiente = await FormularioPendiente.findOne({
-      aulaVirtual: aulaId,
-      estudiante: estudianteId
+      aulaVirtual: aulaId
     });
 
     if (!formPendiente) {
@@ -284,15 +300,19 @@ export const expedienteService = {
 
   /**
    * Genera y transmite en streaming el archivo Excel inyectando los datos de la colección formularios_pendientes
+   * Accesible tanto para el Estudiante como para su Docente Tutor asignado
    */
-  async descargarInformeExcel(aulaId, estudianteId, modalidadEsperada) {
+  async descargarInformeExcel(aulaId, usuarioId, modalidadEsperada = null) {
     const aula = await AulaVirtual.findById(aulaId)
       .populate('estudiante', 'nombres apellidos cedula correo telefono')
       .populate('docenteTutor', 'nombres apellidos cedula correo telefono');
 
     if (!aula) throw errorHttp('Aula virtual no encontrada', 404);
 
-    if (aula.estudiante?._id?.toString() !== estudianteId.toString()) {
+    const esEstudiante = aula.estudiante?._id?.toString() === usuarioId.toString();
+    const esDocente = aula.docenteTutor?._id?.toString() === usuarioId.toString();
+
+    if (!esEstudiante && !esDocente) {
       throw errorHttp('No tienes permiso para descargar el formulario de esta aula', 403);
     }
 
@@ -305,8 +325,7 @@ export const expedienteService = {
 
     // Validación estricta: Si la IA no ha generado la información en formularios_pendientes, se bloquea la descarga
     const formPendiente = await FormularioPendiente.findOne({
-      aulaVirtual: aulaId,
-      estudiante: estudianteId
+      aulaVirtual: aulaId
     });
 
     if (!formPendiente) {
